@@ -12,7 +12,10 @@ import com.example.auth.repository.UserDetailsRepository;
 import com.example.auth.service.AppointmentService;
 import com.example.auth.service.EnhancedAppointmentService;
 import jakarta.validation.Valid;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -24,6 +27,9 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/doctor")
 public class DoctorController {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private final AppointmentService svc;
     private final EnhancedAppointmentService enhancedAppointmentService;
@@ -68,12 +74,75 @@ public class DoctorController {
      * Bulk reschedule all appointments for a workspace
      * Supports extending appointments by hours/minutes or moving to specific date
      */
-    @PostMapping("/appointments/bulk-reschedule")
+    @PostMapping("/{doctorId}/appointments/bulk-reschedule")
     public ResponseEntity<Map<String, String>> reschedule(@PathVariable("doctorId") Long doctorId,
                                                          @Valid @RequestBody WorkspaceBulkRescheduleDto request) {
-        
-        String result = bulkRescheduleWorkspaceAppointments(doctorId, request);
-        return ResponseEntity.ok(Map.of("message", result));
+        // Collect all appointment IDs for the doctor and workspace with status BOOKED
+        List<Long> appointmentIds = new ArrayList<>();
+        List<Appointment> allCurrentAppointments = appointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
+        for (Appointment appointment : allCurrentAppointments) {
+            if (appointment.getDoctorId().equals(doctorId) && "BOOKED".equals(appointment.getStatus())) {
+                appointmentIds.add(appointment.getId());
+            }
+        }
+        // List<FutureTwoDayAppointment> allFutureAppointments = futureAppointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
+        // for (FutureTwoDayAppointment futureAppt : allFutureAppointments) {
+        //     if (futureAppt.getDoctorId().equals(doctorId) && "BOOKED".equals(futureAppt.getStatus())) {
+        //         appointmentIds.add(futureAppt.getId());
+        //     }
+        // }
+        if (appointmentIds.isEmpty()) {
+            return ResponseEntity.ok(Map.of("message", "No booked appointments found for the specified workspace."));
+        }
+
+        // Calculate total minutes
+        int totalMinutes = 0;
+        if (request.hasTimeExtension()) {
+            if (request.getExtendHours() != null) {
+                totalMinutes += request.getExtendHours() * 60;
+            }
+            if (request.getExtendMinutes() != null) {
+                totalMinutes += request.getExtendMinutes();
+            }
+        }
+
+        String dbResult = "";
+        try {
+            // If newDate is present but empty string, treat it as not provided and call non-date function
+            String newDate = request.getNewDate();
+            boolean hasValidNewDate = newDate != null && !newDate.trim().isEmpty();
+
+            if (hasValidNewDate) {
+                // Call DB function with date
+                dbResult = callIncreaseTimeRangeWithDate(appointmentIds, totalMinutes, newDate);
+            } else if (totalMinutes > 0) {
+                // Call DB function with only minutes
+                dbResult = callIncreaseTimeRange(appointmentIds, totalMinutes);
+            } else {
+                return ResponseEntity.ok(Map.of("message", "No time extension or new date provided."));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to reschedule appointments: " + e.getMessage()));
+        }
+        return ResponseEntity.ok(Map.of("message", dbResult));
+    }
+    private String callIncreaseTimeRange(List<Long> appointmentIds, int totalMinutes) {
+        String minutesStr = totalMinutes + " minutes";
+        // Build ARRAY literal like ARRAY[1,2,3]
+        String arrayLiteral = "ARRAY[" + appointmentIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + "]";
+        // Build final SQL to match the examples: SELECT increase_time_range(ARRAY[...], '100 minutes');
+        String sql = "SELECT increase_time_range(" + arrayLiteral + ", '" + minutesStr + "')";
+        jdbcTemplate.execute(sql);
+        return "reschedule successful";
+    }
+
+    private String callIncreaseTimeRangeWithDate(List<Long> appointmentIds, int totalMinutes, String newDate) {
+        String minutesStr = totalMinutes + " minutes";
+        String arrayLiteral = "ARRAY[" + appointmentIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + "]";
+        // Build SQL matching the example: SELECT increase_time_range(ARRAY[...], '30 minutes', '2025-10-21');
+        String sql = "SELECT increase_time_range(" + arrayLiteral + ", '" + minutesStr + "', '" + newDate + "')";
+        jdbcTemplate.execute(sql);
+        return "reschedule successful";
     }
 
     /**
@@ -153,72 +222,138 @@ public class DoctorController {
     
     /**
      * Bulk reschedule all appointments for a workspace
-     * Marks existing appointments as RESCHEDULED and creates new ones with BOOKED status
+     * Updates existing appointments with new time/date instead of creating duplicates
      */
     private String bulkRescheduleWorkspaceAppointments(Long doctorId, WorkspaceBulkRescheduleDto request) {
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         
-        // Get all current and future appointments for the workspace from appointments table
-        List<Appointment> currentAppointments = appointmentRepository.findByDoctorIdAndWorkplaceIdAndAppointmentDate(
-            doctorId, request.getWorkspaceId(), today);
+        // Get all appointments for the workspace from appointments table (current/today's appointments)
+        List<Appointment> allCurrentAppointments = appointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
         
-        List<Appointment> allWorkspaceAppointments = new ArrayList<>();
+        List<Appointment> currentWorkspaceAppointments = new ArrayList<>();
         
-        // Filter to get only current/future appointments that are BOOKED
-        for (Appointment appointment : currentAppointments) {
-            if ("BOOKED".equals(appointment.getStatus()) && 
-                appointment.getAppointmentDate().compareTo(today) >= 0) {
-                allWorkspaceAppointments.add(appointment);
+        // Filter for doctor's BOOKED appointments from current table
+        for (Appointment appointment : allCurrentAppointments) {
+            if (appointment.getDoctorId().equals(doctorId) && 
+                "BOOKED".equals(appointment.getStatus())) {
+                currentWorkspaceAppointments.add(appointment);
             }
         }
         
-        // Get future appointments from future_2day_appointments table
-        List<FutureTwoDayAppointment> futureAppointments = futureAppointmentRepository.findByDoctorIdAndWorkplaceId(
-            doctorId, request.getWorkspaceId());
+        // Get all future appointments for the workspace from future_2day_appointments table
+        List<FutureTwoDayAppointment> allFutureAppointments = futureAppointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
         
-        for (FutureTwoDayAppointment futureAppt : futureAppointments) {
-            if ("BOOKED".equals(futureAppt.getStatus())) {
-                // Convert to Appointment for uniform processing
-                Appointment convertedAppt = convertFutureToAppointment(futureAppt);
-                allWorkspaceAppointments.add(convertedAppt);
+        List<FutureTwoDayAppointment> futureWorkspaceAppointments = new ArrayList<>();
+        
+        // Filter for doctor's BOOKED appointments from future table
+        for (FutureTwoDayAppointment futureAppt : allFutureAppointments) {
+            if (futureAppt.getDoctorId().equals(doctorId) && 
+                "BOOKED".equals(futureAppt.getStatus())) {
+                futureWorkspaceAppointments.add(futureAppt);
             }
         }
         
-        if (allWorkspaceAppointments.isEmpty()) {
+        if (currentWorkspaceAppointments.isEmpty() && futureWorkspaceAppointments.isEmpty()) {
             return "No booked appointments found for the specified workspace.";
         }
         
         int rescheduledCount = 0;
         String rescheduleInfo = "";
+        String reason = "Rescheduled by doctor";
+        if (request.getReason() != null && !request.getReason().trim().isEmpty()) {
+            reason += ": " + request.getReason();
+        }
         
-        // Process each appointment
-        for (Appointment originalAppointment : allWorkspaceAppointments) {
-            // Mark original as RESCHEDULED
-            originalAppointment.setStatus("RESCHEDULED");
-            String reason = "Rescheduled by doctor";
-            if (request.getReason() != null && !request.getReason().trim().isEmpty()) {
-                reason += ": " + request.getReason();
-            }
-            originalAppointment.setNotes(reason);
+        // Update current appointments
+        for (Appointment appointment : currentWorkspaceAppointments) {
+            // Store original appointment time before updating
+            OffsetDateTime originalAppointmentTime = appointment.getAppointmentTime();
             
             // Calculate new appointment time
             OffsetDateTime newAppointmentTime = calculateNewAppointmentTime(
-                originalAppointment.getAppointmentTime(), request);
+                originalAppointmentTime, request);
             
-            // Create new appointment with BOOKED status
-            Appointment newAppointment = createRescheduledAppointment(originalAppointment, newAppointmentTime, reason);
+            // Update the existing appointment directly
+            appointment.setAppointmentTime(newAppointmentTime);
+            appointment.setAppointmentDate(newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
             
-            // Save both appointments
-            appointmentRepository.save(originalAppointment);
+            // Update slot based on extension or new time (use original time for calculation)
+            String oldSlot = appointment.getSlot(); // Store old slot for debugging
+            String newSlot = calculateNewSlot(originalAppointmentTime, newAppointmentTime, appointment.getDurationMinutes(), request);
             
-            // Determine which table to save the new appointment to
+            // Debug info (can be removed later)
+            System.out.println("DEBUG - Appointment ID: " + appointment.getId());
+            System.out.println("DEBUG - Original Time: " + originalAppointmentTime);
+            System.out.println("DEBUG - New Time: " + newAppointmentTime);
+            System.out.println("DEBUG - Duration: " + appointment.getDurationMinutes() + " minutes");
+            System.out.println("DEBUG - Old Slot: " + oldSlot);
+            System.out.println("DEBUG - New Slot: " + newSlot);
+            System.out.println("DEBUG - Has Time Extension: " + request.hasTimeExtension());
+            System.out.println("DEBUG - Extend Hours: " + request.getExtendHours());
+            System.out.println("DEBUG - Extend Minutes: " + request.getExtendMinutes());
+            System.out.println("DEBUG ---");
+            
+            appointment.setSlot(newSlot);
+            appointment.setNotes(reason);
+            
+            // Check if the new date requires moving to future table
+            String newDate = newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            if (!newDate.equals(today)) {
+                // Move to future appointments table
+                FutureTwoDayAppointment futureAppt = convertAppointmentToFuture(appointment);
+                futureAppointmentRepository.save(futureAppt);
+                // Delete from current appointments table
+                appointmentRepository.delete(appointment);
+            } else {
+                // Stay in current appointments table
+                appointmentRepository.save(appointment);
+            }
+            
+            rescheduledCount++;
+        }
+        
+        // Update future appointments
+        for (FutureTwoDayAppointment futureAppt : futureWorkspaceAppointments) {
+            // Store original appointment time before updating
+            OffsetDateTime originalAppointmentTime = futureAppt.getAppointmentTime();
+            
+            // Calculate new appointment time
+            OffsetDateTime newAppointmentTime = calculateNewAppointmentTime(
+                originalAppointmentTime, request);
+            
+            // Update the existing future appointment directly
+            futureAppt.setAppointmentTime(newAppointmentTime);
+            futureAppt.setAppointmentDate(newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+            
+            // Update slot based on extension or new time (use original time for calculation)
+            String oldSlot = futureAppt.getSlot(); // Store old slot for debugging
+            String newSlot = calculateNewSlot(originalAppointmentTime, newAppointmentTime, futureAppt.getDurationMinutes(), request);
+            
+            // Debug info (can be removed later)
+            System.out.println("DEBUG FUTURE - Appointment ID: " + futureAppt.getId());
+            System.out.println("DEBUG FUTURE - Original Time: " + originalAppointmentTime);
+            System.out.println("DEBUG FUTURE - New Time: " + newAppointmentTime);
+            System.out.println("DEBUG FUTURE - Duration: " + futureAppt.getDurationMinutes() + " minutes");
+            System.out.println("DEBUG FUTURE - Old Slot: " + oldSlot);
+            System.out.println("DEBUG FUTURE - New Slot: " + newSlot);
+            System.out.println("DEBUG FUTURE - Has Time Extension: " + request.hasTimeExtension());
+            System.out.println("DEBUG FUTURE - Extend Hours: " + request.getExtendHours());
+            System.out.println("DEBUG FUTURE - Extend Minutes: " + request.getExtendMinutes());
+            System.out.println("DEBUG FUTURE ---");
+            
+            futureAppt.setSlot(newSlot);
+            futureAppt.setNotes(reason);
+            
+            // Check if the new date requires moving to current table
             String newDate = newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
             if (newDate.equals(today)) {
-                // Save to current appointments table
-                appointmentRepository.save(newAppointment);
+                // Move to current appointments table
+                Appointment currentAppt = convertFutureToAppointment(futureAppt);
+                appointmentRepository.save(currentAppt);
+                // Delete from future appointments table
+                futureAppointmentRepository.delete(futureAppt);
             } else {
-                // Save to future appointments table
-                FutureTwoDayAppointment futureAppt = convertAppointmentToFuture(newAppointment);
+                // Stay in future appointments table
                 futureAppointmentRepository.save(futureAppt);
             }
             
@@ -267,35 +402,25 @@ public class DoctorController {
     }
     
     /**
-     * Create a new rescheduled appointment based on the original
+     * Calculate new slot based on the type of rescheduling
+     * For time extension: shifts the slot by the extension amount
+     * For date change: keeps the same time slot but on new date
      */
-    private Appointment createRescheduledAppointment(Appointment original, OffsetDateTime newTime, String reason) {
-        Appointment newAppointment = new Appointment();
+    private String calculateNewSlot(OffsetDateTime originalTime, OffsetDateTime newTime, Integer durationMinutes, WorkspaceBulkRescheduleDto request) {
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("h:mma");
         
-        // Copy all fields from original
-        newAppointment.setDoctorId(original.getDoctorId());
-        newAppointment.setUserId(original.getUserId());
-        newAppointment.setWorkplaceId(original.getWorkplaceId());
-        newAppointment.setWorkplaceName(original.getWorkplaceName());
-        newAppointment.setWorkplaceType(original.getWorkplaceType());
-        newAppointment.setWorkplaceAddress(original.getWorkplaceAddress());
-        newAppointment.setDurationMinutes(original.getDurationMinutes());
-        newAppointment.setQueuePosition(original.getQueuePosition());
-        newAppointment.setDoctorName(original.getDoctorName());
-        newAppointment.setDoctorSpecialization(original.getDoctorSpecialization());
-        
-        // Set new time and date
-        newAppointment.setAppointmentTime(newTime);
-        newAppointment.setAppointmentDate(newTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-        
-        // Update slot based on new time
-        newAppointment.setSlot(generateTimeSlot(newTime, original.getDurationMinutes()));
-        
-        // Set as BOOKED and add reason
-        newAppointment.setStatus("BOOKED");
-        newAppointment.setNotes("Rescheduled from " + original.getAppointmentDate() + " - " + reason);
-        
-        return newAppointment;
+        if (request.hasTimeExtension()) {
+            // For time extension: the new slot starts at the new time (which is original + extension)
+            // Example: Original: 8:00 AM, Extension: 30 min, New time: 8:30 AM
+            // New slot: 8:30 AM - 9:00 AM (duration remains same)
+            OffsetDateTime slotStartTime = newTime;
+            OffsetDateTime slotEndTime = slotStartTime.plusMinutes(durationMinutes);
+            
+            return slotStartTime.format(timeFormatter) + " - " + slotEndTime.format(timeFormatter);
+        } else {
+            // For date change: use the new time with original duration
+            return generateTimeSlot(newTime, durationMinutes);
+        }
     }
     
     /**
@@ -376,16 +501,16 @@ public class DoctorController {
         }
         
         // Get future appointments for the workspace on the specified date from future_2day_appointments table
-        List<FutureTwoDayAppointment> futureAppointments = futureAppointmentRepository.findByWorkplaceIdAndAppointmentDate(workspaceId, targetDate);
+        // List<FutureTwoDayAppointment> futureAppointments = futureAppointmentRepository.findByWorkplaceIdAndAppointmentDate(workspaceId, targetDate);
         
-        for (FutureTwoDayAppointment appointment : futureAppointments) {
-            if ("BOOKED".equals(appointment.getStatus())) {
-                appointment.setStatus("CANCELLED");
-                appointment.setNotes("Cancelled by doctor - " + (request.getReason() != null ? request.getReason() : "Day cancelled"));
-                futureAppointmentRepository.save(appointment);
-                cancelledCount++;
-            }
-        }
+        // for (FutureTwoDayAppointment appointment : futureAppointments) {
+        //     if ("BOOKED".equals(appointment.getStatus())) {
+        //         appointment.setStatus("CANCELLED");
+        //         appointment.setNotes("Cancelled by doctor - " + (request.getReason() != null ? request.getReason() : "Day cancelled"));
+        //         futureAppointmentRepository.save(appointment);
+        //         cancelledCount++;
+        //     }
+        // }
         
         if (cancelledCount == 0) {
             return "No booked appointments found for the specified workspace and date.";

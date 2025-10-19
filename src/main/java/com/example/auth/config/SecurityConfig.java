@@ -37,7 +37,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/register/**", "/api/registration/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/user/**", "/api/doctor/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/register/**", "/api/registration/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/user/**", "/api/doctor/**", "/api/doctors/**").permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());
@@ -65,7 +65,8 @@ public class SecurityConfig {
                 requestPath.startsWith("/api/register/") ||
                 requestPath.startsWith("/api/registration/") ||
                 requestPath.startsWith("/swagger-ui/") || 
-                requestPath.startsWith("/v3/api-docs/")) {
+                requestPath.startsWith("/v3/api-docs/") ||
+                requestPath.startsWith("/api/doctors/")) {
                 filterChain.doFilter(request, response);
                 return;
             }

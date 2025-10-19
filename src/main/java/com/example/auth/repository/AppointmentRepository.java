@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -109,6 +110,17 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     /**
      * Find all appointments by workplace - for workspace appointments API (all dates)
      */
-    @Query("SELECT a FROM Appointment a WHERE a.workplaceId = :workplaceId ORDER BY a.appointmentDate ASC, a.appointmentTime ASC")
+    @Query("SELECT a FROM Appointment a WHERE a.workplaceId = :workplaceId")
     List<Appointment> findByWorkplaceIdOrderByAppointmentDateAndTime(@Param("workplaceId") Long workplaceId);
+
+    // Native function call to increase_time_range using PostgreSQL array literal
+    @Modifying
+    @Transactional
+    @Query(value = "SELECT increase_time_range(CAST(:ids AS int[]), CAST(:add_interval AS text))", nativeQuery = true)
+    void increaseTimeRangeNative(@Param("ids") String ids, @Param("add_interval") String addInterval);
+
+    @Modifying
+    @Transactional
+    @Query(value = "SELECT increase_time_range(CAST(:ids AS int[]), CAST(:add_interval AS text), CAST(:new_date AS date))", nativeQuery = true)
+    void increaseTimeRangeNativeWithDate(@Param("ids") String ids, @Param("add_interval") String addInterval, @Param("new_date") String newDate);
 }

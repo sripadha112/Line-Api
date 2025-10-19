@@ -17,7 +17,8 @@ public class WorkspaceBulkRescheduleDto {
     @Min(value = 0, message = "Minutes must be non-negative")
     private Integer extendMinutes;
     
-    @Pattern(regexp = "\\d{4}-\\d{2}-\\d{2}", message = "Date must be in YYYY-MM-DD format")
+    // Allow empty string or a valid date in YYYY-MM-DD format
+    @Pattern(regexp = "(^$|\\d{4}-\\d{2}-\\d{2})", message = "Date must be in YYYY-MM-DD format")
     private String newDate;
     
     private String reason;
