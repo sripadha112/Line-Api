@@ -14,7 +14,7 @@ public interface EnhancedAppointmentService {
     
     UserAppointmentsResponseDto getUserAppointments(Long userId);
     
-    AvailableSlotsResponseDto getAvailableSlots(Long doctorId, Long workplaceId);
+    AvailableSlotsResponseDto getAvailableSlots(Long doctorId, Long workplaceId, String date);
     
     UserAppointmentDto bookAppointment(BookAppointmentRequestDto request);
     

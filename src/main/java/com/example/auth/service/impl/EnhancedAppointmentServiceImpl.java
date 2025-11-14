@@ -13,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 @Service
 public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentService {
@@ -92,7 +93,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     }
 
     @Override
-    public AvailableSlotsResponseDto getAvailableSlots(Long doctorId, Long workplaceId) {
+    public AvailableSlotsResponseDto getAvailableSlots(Long doctorId, Long workplaceId, String date) {
         Map<String, List<String>> slotsByDate = new LinkedHashMap<>();
         
         // Get doctor and workplace details
@@ -106,15 +107,30 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         DoctorDetails doctor = doctorOpt.get();
         DoctorWorkplace workplace = workplaceOpt.get();
         
-        // Generate slots for current day + next 2 days (3 days total)
-        LocalDate currentDate = LocalDate.now();
-        for (int i = 0; i < 3; i++) {
-            LocalDate date = currentDate.plusDays(i);
-            String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-            
-            List<String> availableSlots = generateAvailableSlots(doctor, workplace, dateStr);
-            if (!availableSlots.isEmpty()) {
-                slotsByDate.put(dateStr, availableSlots);
+        if (date != null && !date.trim().isEmpty()) {
+            // Generate slots for specific date
+            try {
+                LocalDate targetDate = LocalDate.parse(date);
+                String dateStr = targetDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                
+                List<String> availableSlots = generateAvailableSlots(doctor, workplace, dateStr);
+                if (!availableSlots.isEmpty()) {
+                    slotsByDate.put(dateStr, availableSlots);
+                }
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid date format. Please use yyyy-MM-dd format");
+            }
+        } else {
+            // Generate slots for current day + next 2 days (3 days total) - existing behavior
+            LocalDate currentDate = LocalDate.now();
+            for (int i = 0; i < 3; i++) {
+                LocalDate targetDate = currentDate.plusDays(i);
+                String dateStr = targetDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                
+                List<String> availableSlots = generateAvailableSlots(doctor, workplace, dateStr);
+                if (!availableSlots.isEmpty()) {
+                    slotsByDate.put(dateStr, availableSlots);
+                }
             }
         }
         
@@ -161,7 +177,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     }
 
     private String formatSlot(LocalTime start, LocalTime end) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mma");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH);
         return start.format(formatter) + " - " + end.format(formatter);
     }
 
@@ -257,15 +273,40 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     }
 
     private OffsetDateTime parseSlotToDateTime(String slot, String date) {
-        // Parse slot like "9:00AM - 9:15AM" and combine with date
-        String[] parts = slot.split(" - ");
-        String startTimeStr = parts[0];
-        
-        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("h:mma");
-        LocalTime startTime = LocalTime.parse(startTimeStr, timeFormatter);
-        LocalDate appointmentDate = LocalDate.parse(date);
-        
-        return appointmentDate.atTime(startTime).atOffset(OffsetDateTime.now().getOffset());
+        try {
+            // Parse slot like "9:30AM - 9:45AM" and combine with date
+            String[] parts = slot.split(" - ");
+            String startTimeStr = parts[0].trim();
+            
+            // Try multiple formatters to handle different time formats
+            DateTimeFormatter[] formatters = {
+                DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("H:mm", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("h:mma", Locale.US)
+            };
+            
+            LocalTime startTime = null;
+            for (DateTimeFormatter formatter : formatters) {
+                try {
+                    startTime = LocalTime.parse(startTimeStr, formatter);
+                    break;
+                } catch (Exception e) {
+                    // Try next formatter
+                    continue;
+                }
+            }
+            
+            if (startTime == null) {
+                throw new IllegalArgumentException("Unable to parse time slot: " + startTimeStr);
+            }
+            
+            LocalDate appointmentDate = LocalDate.parse(date);
+            return appointmentDate.atTime(startTime).atOffset(OffsetDateTime.now().getOffset());
+            
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid time slot format: " + slot + ". Expected format: '9:30AM - 10:00AM'", e);
+        }
     }
 
     private int getNextQueuePosition(Long doctorId, Long workplaceId, String date) {
@@ -307,34 +348,46 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     public String rescheduleUserAppointment(UserRescheduleRequestDto request) {
         Long appointmentId = request.getAppointmentId();
         
-        // Try to find in current appointments
+        // Validate new appointment date
+        try {
+            LocalDate newDate = LocalDate.parse(request.getNewAppointmentDate());
+            LocalDate today = LocalDate.now();
+            
+            if (newDate.isBefore(today)) {
+                throw new IllegalArgumentException("Cannot reschedule to a past date");
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid date format. Please use yyyy-MM-dd format");
+        }
+        
+        // Try to find in current appointments table
         Optional<Appointment> currentAppointment = appointmentRepository.findById(appointmentId);
         if (currentAppointment.isPresent()) {
             Appointment appointment = currentAppointment.get();
             
             // Mark original appointment as rescheduled
             appointment.setStatus("RESCHEDULED");
-            appointment.setNotes(request.getReason());
+            appointment.setNotes("Original appointment rescheduled: " + request.getReason());
             appointmentRepository.save(appointment);
             
-            // Create new appointment with the new date and time
-            createRescheduledAppointmentFromUser(appointment, request);
+            // Create new appointment with the new date and time - always in appointments table
+            createRescheduledAppointment(appointment, request);
             
             return "Appointment rescheduled successfully";
         }
         
-        // Try to find in future appointments
+        // Try to find in future appointments table (for backward compatibility during migration)
         Optional<FutureTwoDayAppointment> futureAppointment = futureAppointmentRepository.findById(appointmentId);
         if (futureAppointment.isPresent()) {
             FutureTwoDayAppointment appointment = futureAppointment.get();
             
             // Mark original appointment as rescheduled
             appointment.setStatus("RESCHEDULED");
-            appointment.setNotes(request.getReason());
+            appointment.setNotes("Original appointment rescheduled: " + request.getReason());
             futureAppointmentRepository.save(appointment);
             
-            // Create new appointment with the new date and time
-            createRescheduledFutureAppointmentFromUser(appointment, request);
+            // Create new appointment with the new date and time - always in appointments table
+            createRescheduledAppointmentFromFuture(appointment, request);
             
             return "Appointment rescheduled successfully";
         }
@@ -713,113 +766,51 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         }
     }
     
-    private void createRescheduledAppointmentFromUser(Appointment originalAppointment, UserRescheduleRequestDto request) {
-        LocalDate newDate = LocalDate.parse(request.getNewAppointmentDate());
-        LocalDate today = LocalDate.now();
-        LocalDate dayAfterTomorrow = today.plusDays(2);
+    private void createRescheduledAppointment(Appointment originalAppointment, UserRescheduleRequestDto request) {
+        // Create new appointment in the appointments table (no date restrictions)
+        Appointment newAppointment = new Appointment();
+        newAppointment.setUserId(originalAppointment.getUserId());
+        newAppointment.setDoctorId(originalAppointment.getDoctorId());
+        newAppointment.setWorkplaceId(originalAppointment.getWorkplaceId());
+        newAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
+        newAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
+        newAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
         
-        if (newDate.isEqual(today)) {
-            // Create current day appointment
-            Appointment newAppointment = new Appointment();
-            newAppointment.setUserId(originalAppointment.getUserId());
-            newAppointment.setDoctorId(originalAppointment.getDoctorId());
-            newAppointment.setWorkplaceId(originalAppointment.getWorkplaceId());
-            newAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
-            newAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
-            newAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
-            
-            newAppointment.setAppointmentDate(request.getNewAppointmentDate());
-            newAppointment.setSlot(request.getNewTimeSlot());
-            newAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
-            newAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
-            newAppointment.setStatus("BOOKED");
-            newAppointment.setNotes("Rescheduled by user: " + request.getReason());
-            newAppointment.setDoctorName(originalAppointment.getDoctorName());
-            newAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
-            newAppointment.setQueuePosition(getNextQueuePosition(originalAppointment.getDoctorId(), 
-                    originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
-            
-            appointmentRepository.save(newAppointment);
-            
-        } else if (newDate.isAfter(today) && !newDate.isAfter(dayAfterTomorrow)) {
-            // Create future appointment (within 2 days)
-            FutureTwoDayAppointment futureAppointment = new FutureTwoDayAppointment();
-            futureAppointment.setUserId(originalAppointment.getUserId());
-            futureAppointment.setDoctorId(originalAppointment.getDoctorId());
-            futureAppointment.setWorkplaceId(originalAppointment.getWorkplaceId());
-            futureAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
-            futureAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
-            futureAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
-            
-            futureAppointment.setAppointmentDate(request.getNewAppointmentDate());
-            futureAppointment.setSlot(request.getNewTimeSlot());
-            futureAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
-            futureAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
-            futureAppointment.setStatus("BOOKED");
-            futureAppointment.setNotes("Rescheduled by user: " + request.getReason());
-            futureAppointment.setDoctorName(originalAppointment.getDoctorName());
-            futureAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
-            futureAppointment.setQueuePosition(getNextQueuePositionFuture(originalAppointment.getDoctorId(), 
-                    originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
-            
-            futureAppointmentRepository.save(futureAppointment);
-        } else {
-            throw new RuntimeException("Rescheduling is only allowed for today or within next 2 days");
-        }
+        newAppointment.setAppointmentDate(request.getNewAppointmentDate());
+        newAppointment.setSlot(request.getNewTimeSlot());
+        newAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
+        newAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
+        newAppointment.setStatus("BOOKED");
+        newAppointment.setNotes("Rescheduled by user: " + request.getReason());
+        newAppointment.setDoctorName(originalAppointment.getDoctorName());
+        newAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
+        newAppointment.setQueuePosition(getNextQueuePosition(originalAppointment.getDoctorId(), 
+                originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
+        
+        appointmentRepository.save(newAppointment);
     }
     
-    private void createRescheduledFutureAppointmentFromUser(FutureTwoDayAppointment originalAppointment, UserRescheduleRequestDto request) {
-        LocalDate newDate = LocalDate.parse(request.getNewAppointmentDate());
-        LocalDate today = LocalDate.now();
-        LocalDate dayAfterTomorrow = today.plusDays(2);
+    private void createRescheduledAppointmentFromFuture(FutureTwoDayAppointment originalAppointment, UserRescheduleRequestDto request) {
+        // Create new appointment in the appointments table (no date restrictions)
+        Appointment newAppointment = new Appointment();
+        newAppointment.setUserId(originalAppointment.getUserId());
+        newAppointment.setDoctorId(originalAppointment.getDoctorId());
+        newAppointment.setWorkplaceId(originalAppointment.getWorkplaceId());
+        newAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
+        newAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
+        newAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
         
-        if (newDate.isEqual(today)) {
-            // Create current day appointment
-            Appointment newAppointment = new Appointment();
-            newAppointment.setUserId(originalAppointment.getUserId());
-            newAppointment.setDoctorId(originalAppointment.getDoctorId());
-            newAppointment.setWorkplaceId(originalAppointment.getWorkplaceId());
-            newAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
-            newAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
-            newAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
-            
-            newAppointment.setAppointmentDate(request.getNewAppointmentDate());
-            newAppointment.setSlot(request.getNewTimeSlot());
-            newAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
-            newAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
-            newAppointment.setStatus("BOOKED");
-            newAppointment.setNotes("Rescheduled by user: " + request.getReason());
-            newAppointment.setDoctorName(originalAppointment.getDoctorName());
-            newAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
-            newAppointment.setQueuePosition(getNextQueuePosition(originalAppointment.getDoctorId(), 
-                    originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
-            
-            appointmentRepository.save(newAppointment);
-            
-        } else if (newDate.isAfter(today) && !newDate.isAfter(dayAfterTomorrow)) {
-            // Create future appointment (within 2 days)
-            FutureTwoDayAppointment futureAppointment = new FutureTwoDayAppointment();
-            futureAppointment.setUserId(originalAppointment.getUserId());
-            futureAppointment.setDoctorId(originalAppointment.getDoctorId());
-            futureAppointment.setWorkplaceId(originalAppointment.getWorkplaceId());
-            futureAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
-            futureAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
-            futureAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
-            
-            futureAppointment.setAppointmentDate(request.getNewAppointmentDate());
-            futureAppointment.setSlot(request.getNewTimeSlot());
-            futureAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
-            futureAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
-            futureAppointment.setStatus("BOOKED");
-            futureAppointment.setNotes("Rescheduled by user: " + request.getReason());
-            futureAppointment.setDoctorName(originalAppointment.getDoctorName());
-            futureAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
-            futureAppointment.setQueuePosition(getNextQueuePositionFuture(originalAppointment.getDoctorId(), 
-                    originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
-            
-            futureAppointmentRepository.save(futureAppointment);
-        } else {
-            throw new RuntimeException("Rescheduling is only allowed for today or within next 2 days");
-        }
+        newAppointment.setAppointmentDate(request.getNewAppointmentDate());
+        newAppointment.setSlot(request.getNewTimeSlot());
+        newAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
+        newAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
+        newAppointment.setStatus("BOOKED");
+        newAppointment.setNotes("Rescheduled by user: " + request.getReason());
+        newAppointment.setDoctorName(originalAppointment.getDoctorName());
+        newAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
+        newAppointment.setQueuePosition(getNextQueuePosition(originalAppointment.getDoctorId(), 
+                originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
+        
+        appointmentRepository.save(newAppointment);
     }
 }

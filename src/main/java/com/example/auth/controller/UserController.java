@@ -38,13 +38,15 @@ public class UserController {
     
     /**
      * 2. Get available slots for a doctor at a specific workplace
-     * Returns slots for current day + next 2 days
+     * Returns slots for current day + next 2 days (if no date provided)
+     * or slots for specific date (if date provided)
      */
     @GetMapping("/available-slots")
     public ResponseEntity<AvailableSlotsResponseDto> getAvailableSlots(
             @RequestParam("doctorId") Long doctorId,
-            @RequestParam("workplaceId") Long workplaceId) {
-        AvailableSlotsResponseDto slots = enhancedAppointmentService.getAvailableSlots(doctorId, workplaceId);
+            @RequestParam("workplaceId") Long workplaceId,
+            @RequestParam(value = "date", required = false) String date) {
+        AvailableSlotsResponseDto slots = enhancedAppointmentService.getAvailableSlots(doctorId, workplaceId, date);
         return ResponseEntity.ok(slots);
     }
     

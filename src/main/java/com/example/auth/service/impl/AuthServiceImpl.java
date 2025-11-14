@@ -13,6 +13,7 @@ import com.example.auth.repository.DoctorDetailsRepository;
 import com.example.auth.repository.OtpLoginRepository;
 import com.example.auth.repository.UserDetailsRepository;
 import com.example.auth.service.AuthService;
+import com.example.auth.service.OtpService;
 import com.example.auth.service.TokenBlacklistService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
@@ -29,15 +30,17 @@ public class AuthServiceImpl implements AuthService {
     private final DoctorDetailsRepository doctorRepo;
     private final JwtUtil jwtUtil;
     private final TokenBlacklistService tokenBlacklistService;
+    private final OtpService otpService;
 
     public AuthServiceImpl(OtpLoginRepository otpRepo, UserDetailsRepository userRepo,
                            DoctorDetailsRepository doctorRepo, JwtUtil jwtUtil,
-                           TokenBlacklistService tokenBlacklistService) {
+                           TokenBlacklistService tokenBlacklistService, OtpService otpService) {
         this.otpRepo = otpRepo;
         this.userRepo = userRepo;
         this.doctorRepo = doctorRepo;
         this.jwtUtil = jwtUtil;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.otpService = otpService;
     }
 
     @Override
@@ -50,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
         System.out.println("[DEBUG] Generated OTP: " + otp);
         
         OtpLogin o = new OtpLogin();
+//        o.setMobileNumber(request.getMobileNumber());
         o.setMobileNumber(request.getMobileNumber());
         o.setOtpCode(otp);
         o.setUsed(false);
@@ -59,8 +63,23 @@ public class AuthServiceImpl implements AuthService {
         otpRepo.save(o);
         System.out.println("[DEBUG] OTP saved to database successfully");
 
-        // MVP: log OTP to console. Replace with SMS provider (Twilio) in prod.
-        System.out.println("[OTP] mobile=" + request.getMobileNumber() + " otp=" + otp);
+        // Send OTP via SMS using OtpService
+        try {
+            // TESTING: Redirect all OTP messages to specific test number
+            // boolean sentSuccessfully = otpService.sendOtp(request.getMobileNumber(), otp);
+            String testMobileNumber = "8790672731"; // TODO: Remove after testing
+            boolean sentSuccessfully = otpService.sendOtp(testMobileNumber, otp);
+            if (sentSuccessfully) {
+                System.out.println("[DEBUG] OTP sent successfully via SMS to test number: " + testMobileNumber + " (Original: " + request.getMobileNumber() + ")");
+            } else {
+                System.out.println("[DEBUG] OTP SMS sending failed, but OTP was logged to console");
+            }
+        } catch (Exception e) {
+            System.out.println("[ERROR] Failed to send OTP via SMS: " + e.getMessage());
+            // OTP is already saved to database, so user can still proceed with verification
+            // The OtpService will handle console fallback in case of SMS failure
+        }
+        
         System.out.println("[DEBUG] OTP request completed successfully");
     }
 
