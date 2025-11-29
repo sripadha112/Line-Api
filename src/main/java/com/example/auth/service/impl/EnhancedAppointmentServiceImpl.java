@@ -19,7 +19,8 @@ import java.util.Locale;
 public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentService {
 
     private final AppointmentRepository appointmentRepository;
-    private final FutureTwoDayAppointmentRepository futureAppointmentRepository;
+    // FutureTwoDayAppointmentRepository kept for safety but not used anymore
+    // private final FutureTwoDayAppointmentRepository futureAppointmentRepository;
     private final PastAppointmentRepository pastAppointmentRepository;
     private final DoctorDetailsRepository doctorRepository;
     private final DoctorWorkplaceRepository workplaceRepository;
@@ -27,13 +28,13 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
 
     public EnhancedAppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
-            FutureTwoDayAppointmentRepository futureAppointmentRepository,
+            /* FutureTwoDayAppointmentRepository futureAppointmentRepository, */
             PastAppointmentRepository pastAppointmentRepository,
             DoctorDetailsRepository doctorRepository,
             DoctorWorkplaceRepository workplaceRepository,
             UserDetailsRepository userRepository) {
         this.appointmentRepository = appointmentRepository;
-        this.futureAppointmentRepository = futureAppointmentRepository;
+    // this.futureAppointmentRepository = futureAppointmentRepository;
         this.pastAppointmentRepository = pastAppointmentRepository;
         this.doctorRepository = doctorRepository;
         this.workplaceRepository = workplaceRepository;
@@ -67,27 +68,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         
         appointmentsByDate.putAll(currentAppointmentsByDate);
         
-        // Get future appointments from future_2day_appointments table
-        List<FutureTwoDayAppointment> allFutureAppointments = futureAppointmentRepository.findByUserIdOrderByAppointmentTime(userId);
-        
-        // Filter future appointments to only include from today onwards
-        Map<String, List<UserAppointmentDto>> futureAppointmentsByDate = allFutureAppointments.stream()
-                .filter(appointment -> appointment.getAppointmentDate().compareTo(today) >= 0) // Only today and future
-                .filter(appointment -> "BOOKED".equals(appointment.getStatus())) // Only booked appointments
-                .map(this::convertFutureToUserAppointmentDto)
-                .collect(Collectors.groupingBy(
-                    UserAppointmentDto::getAppointmentDate,
-                    LinkedHashMap::new,
-                    Collectors.toList()
-                ));
-        
-        appointmentsByDate.putAll(futureAppointmentsByDate);
-        
-        int totalAppointments = currentAppointmentDtos.size() + 
-                               (int) allFutureAppointments.stream()
-                                       .filter(appointment -> appointment.getAppointmentDate().compareTo(today) >= 0)
-                                       .filter(appointment -> "BOOKED".equals(appointment.getStatus()))
-                                       .count();
+    // All appointments (current + future) are now stored in appointments table
+    int totalAppointments = currentAppointmentDtos.size();
         
         return new UserAppointmentsResponseDto(appointmentsByDate, totalAppointments);
     }
@@ -114,9 +96,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 String dateStr = targetDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
                 
                 List<String> availableSlots = generateAvailableSlots(doctor, workplace, dateStr);
-                if (!availableSlots.isEmpty()) {
-                    slotsByDate.put(dateStr, availableSlots);
-                }
+                // Always include the date in response, even if no slots available
+                slotsByDate.put(dateStr, availableSlots);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Invalid date format. Please use yyyy-MM-dd format");
             }
@@ -128,9 +109,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 String dateStr = targetDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
                 
                 List<String> availableSlots = generateAvailableSlots(doctor, workplace, dateStr);
-                if (!availableSlots.isEmpty()) {
-                    slotsByDate.put(dateStr, availableSlots);
-                }
+                // Always include the date in response, even if no slots available
+                slotsByDate.put(dateStr, availableSlots);
             }
         }
         
@@ -159,6 +139,24 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         Set<String> bookedSlots = getBookedSlots(doctor.getId(), workplace.getId(), date);
         allSlots.removeAll(bookedSlots);
         
+        // If requested date is today, remove slots that already started (cannot book past slots)
+        String todayStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        if (date != null && date.equals(todayStr)) {
+            OffsetDateTime now = OffsetDateTime.now();
+            List<String> filtered = new ArrayList<>();
+            for (String slot : allSlots) {
+                try {
+                    OffsetDateTime slotStart = parseSlotToDateTime(slot, date);
+                    if (!slotStart.isBefore(now)) { // keep slots that start at or after now
+                        filtered.add(slot);
+                    }
+                } catch (Exception e) {
+                    // If parsing fails, skip the slot
+                }
+            }
+            allSlots = filtered;
+        }
+
         return allSlots;
     }
 
@@ -191,12 +189,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 .map(Appointment::getSlot)
                 .collect(Collectors.toSet()));
         
-        // Check future appointments
-        List<FutureTwoDayAppointment> futureAppointments = futureAppointmentRepository.findByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workplaceId, date);
-        bookedSlots.addAll(futureAppointments.stream()
-                .filter(a -> a.getSlot() != null && !a.getStatus().equals("CANCELLED"))
-                .map(FutureTwoDayAppointment::getSlot)
-                .collect(Collectors.toSet()));
+    // Appointments table contains both current and future entries; no separate future table lookup needed
         
         return bookedSlots;
     }
@@ -251,7 +244,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     }
 
     private UserAppointmentDto bookFutureAppointment(BookAppointmentRequestDto request, DoctorDetails doctor, DoctorWorkplace workplace) {
-        FutureTwoDayAppointment appointment = new FutureTwoDayAppointment();
+        // Save future appointment directly into appointments table (no separate future table)
+        Appointment appointment = new Appointment();
         appointment.setUserId(request.getUserId());
         appointment.setDoctorId(request.getDoctorId());
         appointment.setWorkplaceId(request.getWorkplaceId());
@@ -266,10 +260,10 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         appointment.setNotes(request.getNotes());
         appointment.setDoctorName(doctor.getFullName());
         appointment.setDoctorSpecialization(doctor.getSpecialization());
-        appointment.setQueuePosition(getNextQueuePositionFuture(request.getDoctorId(), request.getWorkplaceId(), request.getAppointmentDate()));
-        
-        FutureTwoDayAppointment saved = futureAppointmentRepository.save(appointment);
-        return convertFutureToUserAppointmentDto(saved);
+        appointment.setQueuePosition(getNextQueuePosition(request.getDoctorId(), request.getWorkplaceId(), request.getAppointmentDate()));
+
+        Appointment saved = appointmentRepository.save(appointment);
+        return convertToUserAppointmentDto(saved);
     }
 
     private OffsetDateTime parseSlotToDateTime(String slot, String date) {
@@ -315,7 +309,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     }
 
     private int getNextQueuePositionFuture(Long doctorId, Long workplaceId, String date) {
-        List<FutureTwoDayAppointment> appointments = futureAppointmentRepository.findByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workplaceId, date);
+        List<Appointment> appointments = appointmentRepository.findByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workplaceId, date);
         return appointments.size() + 1;
     }
 
@@ -331,15 +325,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             return "Appointment cancelled successfully";
         }
         
-        // Try to find in future appointments
-        Optional<FutureTwoDayAppointment> futureAppointment = futureAppointmentRepository.findById(appointmentId);
-        if (futureAppointment.isPresent()) {
-            FutureTwoDayAppointment appointment = futureAppointment.get();
-            appointment.setStatus("CANCELLED");
-            futureAppointmentRepository.save(appointment);
-            return "Appointment cancelled successfully";
-        }
-        
+        // Appointment not found in appointments table
         throw new IllegalArgumentException("Appointment not found");
     }
 
@@ -376,21 +362,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             return "Appointment rescheduled successfully";
         }
         
-        // Try to find in future appointments table (for backward compatibility during migration)
-        Optional<FutureTwoDayAppointment> futureAppointment = futureAppointmentRepository.findById(appointmentId);
-        if (futureAppointment.isPresent()) {
-            FutureTwoDayAppointment appointment = futureAppointment.get();
-            
-            // Mark original appointment as rescheduled
-            appointment.setStatus("RESCHEDULED");
-            appointment.setNotes("Original appointment rescheduled: " + request.getReason());
-            futureAppointmentRepository.save(appointment);
-            
-            // Create new appointment with the new date and time - always in appointments table
-            createRescheduledAppointmentFromFuture(appointment, request);
-            
-            return "Appointment rescheduled successfully";
-        }
+        // No fallback to separate future table — if not in appointments table, treat as not found
         
         throw new IllegalArgumentException("Appointment not found");
     }
@@ -398,38 +370,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     @Override
     @Transactional
     public void moveAppointmentsToCurrentDay() {
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        List<FutureTwoDayAppointment> appointmentsToMove = futureAppointmentRepository.findByAppointmentDate(today);
-        
-        System.out.println("[SCHEDULER] Found " + appointmentsToMove.size() + " future appointments to move to current day: " + today);
-        
-        for (FutureTwoDayAppointment futureAppointment : appointmentsToMove) {
-            // Create current appointment
-            Appointment currentAppointment = new Appointment();
-            currentAppointment.setUserId(futureAppointment.getUserId());
-            currentAppointment.setDoctorId(futureAppointment.getDoctorId());
-            currentAppointment.setWorkplaceId(futureAppointment.getWorkplaceId());
-            currentAppointment.setWorkplaceName(futureAppointment.getWorkplaceName());
-            currentAppointment.setWorkplaceType(futureAppointment.getWorkplaceType());
-            currentAppointment.setWorkplaceAddress(futureAppointment.getWorkplaceAddress());
-            currentAppointment.setAppointmentDate(futureAppointment.getAppointmentDate());
-            currentAppointment.setSlot(futureAppointment.getSlot());
-            currentAppointment.setAppointmentTime(futureAppointment.getAppointmentTime());
-            currentAppointment.setDurationMinutes(futureAppointment.getDurationMinutes());
-            currentAppointment.setQueuePosition(futureAppointment.getQueuePosition());
-            currentAppointment.setStatus(futureAppointment.getStatus());
-            currentAppointment.setNotes(futureAppointment.getNotes());
-            currentAppointment.setDoctorName(futureAppointment.getDoctorName());
-            currentAppointment.setDoctorSpecialization(futureAppointment.getDoctorSpecialization());
-            currentAppointment.setCreatedAt(futureAppointment.getCreatedAt());
-            
-            appointmentRepository.save(currentAppointment);
-            futureAppointmentRepository.delete(futureAppointment);
-            
-            System.out.println("[SCHEDULER] Moved appointment ID " + futureAppointment.getId() + " for user " + futureAppointment.getUserId());
-        }
-        
-        System.out.println("[SCHEDULER] Successfully moved " + appointmentsToMove.size() + " appointments to current day");
+        // No-op: appointments table now contains both current and future appointments; no moving required
+        System.out.println("[SCHEDULER] moveAppointmentsToCurrentDay is a no-op when all appointments are stored in the appointments table");
     }
 
     @Override
@@ -527,28 +469,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         return dto;
     }
 
-    private UserAppointmentDto convertFutureToUserAppointmentDto(FutureTwoDayAppointment appointment) {
-        UserAppointmentDto dto = new UserAppointmentDto();
-        dto.setId(appointment.getId());
-        dto.setDoctorId(appointment.getDoctorId());
-        dto.setDoctorName(appointment.getDoctorName());
-        dto.setDoctorSpecialization(appointment.getDoctorSpecialization());
-        dto.setWorkplaceId(appointment.getWorkplaceId());
-        dto.setWorkplaceName(appointment.getWorkplaceName());
-        dto.setWorkplaceType(appointment.getWorkplaceType());
-        dto.setWorkplaceAddress(appointment.getWorkplaceAddress());
-        dto.setAppointmentTime(appointment.getAppointmentTime());
-        dto.setAppointmentDate(appointment.getAppointmentDate());
-        dto.setSlot(appointment.getSlot());
-        dto.setDurationMinutes(appointment.getDurationMinutes());
-        dto.setQueuePosition(appointment.getQueuePosition());
-        dto.setStatus(appointment.getStatus());
-        dto.setNotes(appointment.getNotes());
-        dto.setCreatedAt(appointment.getCreatedAt());
-        dto.setUpdatedAt(appointment.getUpdatedAt());
-        
-        return dto;
-    }
+    // convertFutureToUserAppointmentDto removed - use convertToUserAppointmentDto(Appointment) instead
     
     // ==================== NEW DOCTOR MANAGEMENT APIS ====================
     
@@ -720,17 +641,17 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             appointmentRepository.save(newAppointment);
             
         } else if (newDate.isAfter(today) && !newDate.isAfter(dayAfterTomorrow)) {
-            // Create future appointment (within 2 days)
-            FutureTwoDayAppointment futureAppointment = new FutureTwoDayAppointment();
-            futureAppointment.setUserId(originalAppointment.getUserId());
-            futureAppointment.setDoctorId(originalAppointment.getDoctorId());
-            
+            // Create future appointment (within 2 days) but persist into appointments table
+            Appointment futureAppt = new Appointment();
+            futureAppt.setUserId(originalAppointment.getUserId());
+            futureAppt.setDoctorId(originalAppointment.getDoctorId());
+
             // Set workplace details
             Long workplaceIdToUse = originalAppointment.getWorkplaceId();
             String workplaceNameToUse = originalAppointment.getWorkplaceName();
             String workplaceTypeToUse = originalAppointment.getWorkplaceType();
             String workplaceAddressToUse = originalAppointment.getWorkplaceAddress();
-            
+
             if (request.getNewWorkplaceId() != null) {
                 Optional<DoctorWorkplace> workplaceOpt = workplaceRepository.findById(request.getNewWorkplaceId());
                 if (workplaceOpt.isPresent()) {
@@ -741,26 +662,26 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                     workplaceAddressToUse = workplace.getAddress();
                 }
             }
-            
-            futureAppointment.setWorkplaceId(workplaceIdToUse);
-            futureAppointment.setWorkplaceName(workplaceNameToUse);
-            futureAppointment.setWorkplaceType(workplaceTypeToUse);
-            futureAppointment.setWorkplaceAddress(workplaceAddressToUse);
-            futureAppointment.setAppointmentDate(request.getNewAppointmentDate());
-            futureAppointment.setSlot(request.getNewTimeSlot());
-            futureAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
-            futureAppointment.setDurationMinutes(originalAppointment.getDurationMinutes());
-            futureAppointment.setStatus("BOOKED");
-            futureAppointment.setNotes("Rescheduled from " + originalAppointment.getAppointmentDate());
-            
+
+            futureAppt.setWorkplaceId(workplaceIdToUse);
+            futureAppt.setWorkplaceName(workplaceNameToUse);
+            futureAppt.setWorkplaceType(workplaceTypeToUse);
+            futureAppt.setWorkplaceAddress(workplaceAddressToUse);
+            futureAppt.setAppointmentDate(request.getNewAppointmentDate());
+            futureAppt.setSlot(request.getNewTimeSlot());
+            futureAppt.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
+            futureAppt.setDurationMinutes(originalAppointment.getDurationMinutes());
+            futureAppt.setStatus("BOOKED");
+            futureAppt.setNotes("Rescheduled from " + originalAppointment.getAppointmentDate());
+
             // Set doctor details from original appointment
-            futureAppointment.setDoctorName(originalAppointment.getDoctorName());
-            futureAppointment.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
-            
-            futureAppointment.setQueuePosition(getNextQueuePositionFuture(originalAppointment.getDoctorId(), 
+            futureAppt.setDoctorName(originalAppointment.getDoctorName());
+            futureAppt.setDoctorSpecialization(originalAppointment.getDoctorSpecialization());
+
+            futureAppt.setQueuePosition(getNextQueuePositionFuture(originalAppointment.getDoctorId(), 
                     workplaceIdToUse, request.getNewAppointmentDate()));
-            
-            futureAppointmentRepository.save(futureAppointment);
+
+            appointmentRepository.save(futureAppt);
         } else {
             throw new RuntimeException("Rescheduling is only allowed for today or within next 2 days");
         }
@@ -790,7 +711,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         appointmentRepository.save(newAppointment);
     }
     
-    private void createRescheduledAppointmentFromFuture(FutureTwoDayAppointment originalAppointment, UserRescheduleRequestDto request) {
+    private void createRescheduledAppointmentFromFuture(Appointment originalAppointment, UserRescheduleRequestDto request) {
         // Create new appointment in the appointments table (no date restrictions)
         Appointment newAppointment = new Appointment();
         newAppointment.setUserId(originalAppointment.getUserId());

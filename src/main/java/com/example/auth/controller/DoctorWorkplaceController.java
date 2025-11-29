@@ -10,12 +10,11 @@ import com.example.auth.dto.WorkspaceDateAppointmentsDto;
 import com.example.auth.entity.Appointment;
 import com.example.auth.entity.DoctorDetails;
 import com.example.auth.entity.DoctorWorkplace;
-import com.example.auth.entity.FutureTwoDayAppointment;
+// FutureTwoDayAppointment entity/repository kept for safety but not used here
 import com.example.auth.entity.UserDetails;
 import com.example.auth.repository.AppointmentRepository;
 import com.example.auth.repository.DoctorDetailsRepository;
 import com.example.auth.repository.DoctorWorkplaceRepository;
-import com.example.auth.repository.FutureTwoDayAppointmentRepository;
 import com.example.auth.repository.UserDetailsRepository;
 import com.example.auth.service.DailyAppointmentService;
 import com.example.auth.service.EnhancedAppointmentService;
@@ -38,7 +37,7 @@ public class DoctorWorkplaceController {
 
     private final DoctorWorkplaceRepository workplaceRepository;
     private final AppointmentRepository appointmentRepository;
-    private final FutureTwoDayAppointmentRepository futureAppointmentRepository;
+    // private final FutureTwoDayAppointmentRepository futureAppointmentRepository;
     private final UserDetailsRepository userDetailsRepository;
     private final DoctorDetailsRepository doctorDetailsRepository;
     private final DailyAppointmentService dailyAppointmentService;
@@ -46,14 +45,14 @@ public class DoctorWorkplaceController {
 
     public DoctorWorkplaceController(DoctorWorkplaceRepository workplaceRepository,
                                    AppointmentRepository appointmentRepository,
-                                   FutureTwoDayAppointmentRepository futureAppointmentRepository,
+                                   /* FutureTwoDayAppointmentRepository futureAppointmentRepository, */
                                    UserDetailsRepository userDetailsRepository,
                                    DoctorDetailsRepository doctorDetailsRepository,
                                    DailyAppointmentService dailyAppointmentService,
                                    EnhancedAppointmentService enhancedAppointmentService) {
         this.workplaceRepository = workplaceRepository;
         this.appointmentRepository = appointmentRepository;
-        this.futureAppointmentRepository = futureAppointmentRepository;
+    // this.futureAppointmentRepository = futureAppointmentRepository;
         this.userDetailsRepository = userDetailsRepository;
         this.doctorDetailsRepository = doctorDetailsRepository;
         this.dailyAppointmentService = dailyAppointmentService;
@@ -197,16 +196,10 @@ public class DoctorWorkplaceController {
             }
         }
         
-        // Get all future appointments (from future_2day_appointments table) - these are already future
-        List<FutureTwoDayAppointment> futureAppointments = futureAppointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(workplaceId);
-        for (FutureTwoDayAppointment appointment : futureAppointments) {
-            // Only include appointments from today onwards and with BOOKED status
-            if (appointment.getAppointmentDate().compareTo(today) >= 0 && "BOOKED".equals(appointment.getStatus())) {
-                WorkspaceAppointmentDto dto = convertToWorkspaceAppointmentDto(appointment);
-                appointmentsByDate
-                    .computeIfAbsent(appointment.getAppointmentDate(), k -> new ArrayList<>())
-                    .add(dto);
-            }
+        // Include appointments from appointments table that are future (date >= today)
+        for (Appointment appointment : currentAppointments) {
+            // (currentAppointments already fetched from appointmentRepository and includes today+future)
+            // We already processed them in the loop above, so this block intentionally does nothing here.
         }
         
         // Convert map to list of DTOs
@@ -242,32 +235,7 @@ public class DoctorWorkplaceController {
         return dto;
     }
 
-    /**
-     * Convert FutureTwoDayAppointment to WorkspaceAppointmentDto with medical details
-     */
-    private WorkspaceAppointmentDto convertToWorkspaceAppointmentDto(FutureTwoDayAppointment appointment) {
-        WorkspaceAppointmentDto dto = new WorkspaceAppointmentDto();
-        dto.setAppointmentId(appointment.getId());
-        dto.setUserId(appointment.getUserId());
-        dto.setAppointmentTime(appointment.getAppointmentTime());
-        dto.setStatus(appointment.getStatus());
-        dto.setTimeSlot(appointment.getSlot());
-        
-        // Fetch user medical details
-        Optional<UserDetails> userDetails = userDetailsRepository.findById(appointment.getUserId());
-        if (userDetails.isPresent()) {
-            UserDetails user = userDetails.get();
-            dto.setPatientName(user.getFullName());
-            dto.setAge(user.getAge());
-            dto.setWeightKg(user.getWeightKg());
-            dto.setBloodPressureSystolic(user.getBloodPressureSystolic());
-            dto.setBloodPressureDiastolic(user.getBloodPressureDiastolic());
-            dto.setBloodGroup(user.getBloodGroup());
-            dto.setMobileNumber(user.getMobileNumber());
-        }
-        
-        return dto;
-    }
+    // convertToWorkspaceAppointmentDto(FutureTwoDayAppointment) removed; use the Appointment overload instead
 
     private DoctorWorkplaceDto convertToDto(DoctorWorkplace workplace, Long doctorId) {
         DoctorWorkplaceDto dto = new DoctorWorkplaceDto();
@@ -294,34 +262,9 @@ public class DoctorWorkplaceController {
     private AppointmentCounts getAppointmentCounts(Long doctorId, Long workplaceId) {
         // Get today's date as string
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        
-        long todayCount = 0;
-        long futureCount = 0;
-        
-        // Count from appointments table (current day appointments)
-        List<Appointment> currentAppointments = appointmentRepository.findByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workplaceId, today);
-        for (Appointment appointment : currentAppointments) {
-            if ("BOOKED".equals(appointment.getStatus())) {
-                if (appointment.getAppointmentDate().equals(today)) {
-                    todayCount++;
-                } else if (appointment.getAppointmentDate().compareTo(today) > 0) {
-                    futureCount++;
-                }
-            }
-        }
-        
-        // Count from future_2day_appointments table (future appointments)
-        List<FutureTwoDayAppointment> futureAppointments = futureAppointmentRepository.findByDoctorIdAndWorkplaceId(doctorId, workplaceId);
-        for (FutureTwoDayAppointment appointment : futureAppointments) {
-            if ("BOOKED".equals(appointment.getStatus())) {
-                if (appointment.getAppointmentDate().equals(today)) {
-                    todayCount++;
-                } else if (appointment.getAppointmentDate().compareTo(today) > 0) {
-                    futureCount++;
-                }
-            }
-        }
-        
+        long todayCount = appointmentRepository.countByDoctorIdAndWorkplaceIdAndAppointmentDateAndStatus(doctorId, workplaceId, today, "BOOKED");
+        long futureCount = appointmentRepository.countByDoctorIdAndWorkplaceIdAndAppointmentDateGreaterThanAndStatus(doctorId, workplaceId, today, "BOOKED");
+
         return new AppointmentCounts(todayCount, futureCount);
     }
     
@@ -421,40 +364,7 @@ public class DoctorWorkplaceController {
                 return ResponseEntity.ok(response);
             }
             
-            // If not found in appointments table, try future_2day_appointments table
-            Optional<FutureTwoDayAppointment> futureAppointmentOpt = futureAppointmentRepository.findById(appointmentId);
-            
-            if (futureAppointmentOpt.isPresent()) {
-                FutureTwoDayAppointment appointment = futureAppointmentOpt.get();
-                
-                // Check if appointment is in a status that can be cancelled
-                if (!"BOOKED".equals(appointment.getStatus()) && !"RESCHEDULED".equals(appointment.getStatus())) {
-                    Map<String, Object> errorResponse = Map.of(
-                        "error", "Appointment cannot be cancelled. Current status: " + appointment.getStatus(),
-                        "success", false
-                    );
-                    return ResponseEntity.badRequest().body(errorResponse);
-                }
-                
-                // Update the status to CANCELLED
-                appointment.setStatus("CANCELLED");
-                appointment.setUpdatedAt(java.time.OffsetDateTime.now());
-                
-                // Save the updated appointment
-                FutureTwoDayAppointment savedAppointment = futureAppointmentRepository.save(appointment);
-                
-                // Build success response
-                Map<String, Object> response = Map.of(
-                    "message", "Appointment cancelled successfully",
-                    "success", true,
-                    "appointmentId", savedAppointment.getId(),
-                    "status", savedAppointment.getStatus(),
-                    "updatedAt", savedAppointment.getUpdatedAt(),
-                    "table", "future_2day_appointments"
-                );
-                
-                return ResponseEntity.ok(response);
-            }
+            // No fallback to future table — appointments table contains both current and future now
             
             // Appointment not found in either table
             return ResponseEntity.notFound().build();

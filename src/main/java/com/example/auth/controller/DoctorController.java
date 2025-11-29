@@ -2,11 +2,10 @@ package com.example.auth.controller;
 
 import com.example.auth.dto.*;
 import com.example.auth.entity.Appointment;
-import com.example.auth.entity.FutureTwoDayAppointment;
+// FutureTwoDayAppointment entity remains in the project for safety but is no longer used here
 import com.example.auth.entity.PastAppointment;
 import com.example.auth.entity.UserDetails;
 import com.example.auth.repository.AppointmentRepository;
-import com.example.auth.repository.FutureTwoDayAppointmentRepository;
 import com.example.auth.repository.PastAppointmentRepository;
 import com.example.auth.repository.UserDetailsRepository;
 import com.example.auth.service.AppointmentService;
@@ -34,20 +33,18 @@ public class DoctorController {
     private final AppointmentService svc;
     private final EnhancedAppointmentService enhancedAppointmentService;
     private final AppointmentRepository appointmentRepository;
-    private final FutureTwoDayAppointmentRepository futureAppointmentRepository;
     private final PastAppointmentRepository pastAppointmentRepository;
     private final UserDetailsRepository userDetailsRepository;
 
     public DoctorController(AppointmentService svc, 
                           EnhancedAppointmentService enhancedAppointmentService,
                           AppointmentRepository appointmentRepository,
-                          FutureTwoDayAppointmentRepository futureAppointmentRepository,
+                          /* FutureTwoDayAppointmentRepository futureAppointmentRepository, */
                           PastAppointmentRepository pastAppointmentRepository,
                           UserDetailsRepository userDetailsRepository) { 
         this.svc = svc; 
         this.enhancedAppointmentService = enhancedAppointmentService;
-        this.appointmentRepository = appointmentRepository;
-        this.futureAppointmentRepository = futureAppointmentRepository;
+    this.appointmentRepository = appointmentRepository;
         this.pastAppointmentRepository = pastAppointmentRepository;
         this.userDetailsRepository = userDetailsRepository;
     }
@@ -240,16 +237,18 @@ public class DoctorController {
             }
         }
         
-        // Get all future appointments for the workspace from future_2day_appointments table
-        List<FutureTwoDayAppointment> allFutureAppointments = futureAppointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
-        
-        List<FutureTwoDayAppointment> futureWorkspaceAppointments = new ArrayList<>();
-        
-        // Filter for doctor's BOOKED appointments from future table
-        for (FutureTwoDayAppointment futureAppt : allFutureAppointments) {
-            if (futureAppt.getDoctorId().equals(doctorId) && 
-                "BOOKED".equals(futureAppt.getStatus())) {
-                futureWorkspaceAppointments.add(futureAppt);
+        // Get all appointments for the workspace (appointments table contains both current and future entries now)
+        List<Appointment> allAppointments = appointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
+
+        List<Appointment> futureWorkspaceAppointments = new ArrayList<>();
+
+        // Filter for doctor's BOOKED appointments that are not today => treat as future appointments
+        for (Appointment appt : allAppointments) {
+            if (appt.getDoctorId().equals(doctorId) && "BOOKED".equals(appt.getStatus())) {
+                String apptDate = appt.getAppointmentDate();
+                if (!apptDate.equals(today)) {
+                    futureWorkspaceAppointments.add(appt);
+                }
             }
         }
         
@@ -299,11 +298,8 @@ public class DoctorController {
             // Check if the new date requires moving to future table
             String newDate = newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
             if (!newDate.equals(today)) {
-                // Move to future appointments table
-                FutureTwoDayAppointment futureAppt = convertAppointmentToFuture(appointment);
-                futureAppointmentRepository.save(futureAppt);
-                // Delete from current appointments table
-                appointmentRepository.delete(appointment);
+                // Keep in appointments table but with updated date/time and slot
+                appointmentRepository.save(appointment);
             } else {
                 // Stay in current appointments table
                 appointmentRepository.save(appointment);
@@ -312,23 +308,23 @@ public class DoctorController {
             rescheduledCount++;
         }
         
-        // Update future appointments
-        for (FutureTwoDayAppointment futureAppt : futureWorkspaceAppointments) {
+        // Update future appointments (now stored in appointments table)
+        for (Appointment futureAppt : futureWorkspaceAppointments) {
             // Store original appointment time before updating
             OffsetDateTime originalAppointmentTime = futureAppt.getAppointmentTime();
-            
+
             // Calculate new appointment time
             OffsetDateTime newAppointmentTime = calculateNewAppointmentTime(
                 originalAppointmentTime, request);
-            
+
             // Update the existing future appointment directly
             futureAppt.setAppointmentTime(newAppointmentTime);
             futureAppt.setAppointmentDate(newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-            
+
             // Update slot based on extension or new time (use original time for calculation)
             String oldSlot = futureAppt.getSlot(); // Store old slot for debugging
             String newSlot = calculateNewSlot(originalAppointmentTime, newAppointmentTime, futureAppt.getDurationMinutes(), request);
-            
+
             // Debug info (can be removed later)
             System.out.println("DEBUG FUTURE - Appointment ID: " + futureAppt.getId());
             System.out.println("DEBUG FUTURE - Original Time: " + originalAppointmentTime);
@@ -340,23 +336,14 @@ public class DoctorController {
             System.out.println("DEBUG FUTURE - Extend Hours: " + request.getExtendHours());
             System.out.println("DEBUG FUTURE - Extend Minutes: " + request.getExtendMinutes());
             System.out.println("DEBUG FUTURE ---");
-            
+
             futureAppt.setSlot(newSlot);
             futureAppt.setNotes(reason);
-            
-            // Check if the new date requires moving to current table
+
+            // Check if the new date requires moving to current (today) - all still in appointments table so just save
             String newDate = newAppointmentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-            if (newDate.equals(today)) {
-                // Move to current appointments table
-                Appointment currentAppt = convertFutureToAppointment(futureAppt);
-                appointmentRepository.save(currentAppt);
-                // Delete from future appointments table
-                futureAppointmentRepository.delete(futureAppt);
-            } else {
-                // Stay in future appointments table
-                futureAppointmentRepository.save(futureAppt);
-            }
-            
+            appointmentRepository.save(futureAppt);
+
             rescheduledCount++;
         }
         
@@ -432,52 +419,7 @@ public class DoctorController {
         return startTime.format(timeFormatter) + " - " + endTime.format(timeFormatter);
     }
     
-    /**
-     * Convert FutureTwoDayAppointment to Appointment for uniform processing
-     */
-    private Appointment convertFutureToAppointment(FutureTwoDayAppointment futureAppt) {
-        Appointment appointment = new Appointment();
-        appointment.setId(futureAppt.getId());
-        appointment.setDoctorId(futureAppt.getDoctorId());
-        appointment.setUserId(futureAppt.getUserId());
-        appointment.setWorkplaceId(futureAppt.getWorkplaceId());
-        appointment.setWorkplaceName(futureAppt.getWorkplaceName());
-        appointment.setWorkplaceType(futureAppt.getWorkplaceType());
-        appointment.setWorkplaceAddress(futureAppt.getWorkplaceAddress());
-        appointment.setAppointmentTime(futureAppt.getAppointmentTime());
-        appointment.setAppointmentDate(futureAppt.getAppointmentDate());
-        appointment.setSlot(futureAppt.getSlot());
-        appointment.setDurationMinutes(futureAppt.getDurationMinutes());
-        appointment.setQueuePosition(futureAppt.getQueuePosition());
-        appointment.setStatus(futureAppt.getStatus());
-        appointment.setNotes(futureAppt.getNotes());
-        appointment.setDoctorName(futureAppt.getDoctorName());
-        appointment.setDoctorSpecialization(futureAppt.getDoctorSpecialization());
-        return appointment;
-    }
-    
-    /**
-     * Convert Appointment to FutureTwoDayAppointment for saving to future table
-     */
-    private FutureTwoDayAppointment convertAppointmentToFuture(Appointment appointment) {
-        FutureTwoDayAppointment futureAppt = new FutureTwoDayAppointment();
-        futureAppt.setDoctorId(appointment.getDoctorId());
-        futureAppt.setUserId(appointment.getUserId());
-        futureAppt.setWorkplaceId(appointment.getWorkplaceId());
-        futureAppt.setWorkplaceName(appointment.getWorkplaceName());
-        futureAppt.setWorkplaceType(appointment.getWorkplaceType());
-        futureAppt.setWorkplaceAddress(appointment.getWorkplaceAddress());
-        futureAppt.setAppointmentTime(appointment.getAppointmentTime());
-        futureAppt.setAppointmentDate(appointment.getAppointmentDate());
-        futureAppt.setSlot(appointment.getSlot());
-        futureAppt.setDurationMinutes(appointment.getDurationMinutes());
-        futureAppt.setQueuePosition(appointment.getQueuePosition());
-        futureAppt.setStatus(appointment.getStatus());
-        futureAppt.setNotes(appointment.getNotes());
-        futureAppt.setDoctorName(appointment.getDoctorName());
-        futureAppt.setDoctorSpecialization(appointment.getDoctorSpecialization());
-        return futureAppt;
-    }
+    // FutureTwoDayAppointment conversion helpers removed — appointments table is now the single source of truth
     
     /**
      * Cancel all appointments for a workspace on a specific date

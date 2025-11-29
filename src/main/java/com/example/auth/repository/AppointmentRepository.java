@@ -72,6 +72,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     
     @Query("SELECT a FROM Appointment a WHERE a.doctorId = :doctorId AND a.workplaceId = :workplaceId AND a.appointmentDate = :date")
     List<Appointment> findByDoctorIdAndWorkplaceIdAndAppointmentDate(@Param("doctorId") Long doctorId, @Param("workplaceId") Long workplaceId, @Param("date") String date);
+
+    @Query("SELECT a FROM Appointment a WHERE a.doctorId = :doctorId AND a.workplaceId = :workplaceId ORDER BY a.appointmentDate ASC, a.appointmentTime ASC")
+    List<Appointment> findByDoctorIdAndWorkplaceId(@Param("doctorId") Long doctorId, @Param("workplaceId") Long workplaceId);
     
     @Query("SELECT a FROM Appointment a WHERE a.doctorId = :doctorId AND a.workplaceId = :workplaceId AND a.slot = :slot AND a.appointmentDate = :date")
     List<Appointment> findByDoctorIdAndWorkplaceIdAndSlotAndAppointmentDate(@Param("doctorId") Long doctorId, @Param("workplaceId") Long workplaceId, @Param("slot") String slot, @Param("date") String date);
@@ -95,6 +98,16 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
      * Count appointments for queue position calculation
      */
     long countByDoctorIdAndWorkplaceIdAndAppointmentDate(@Param("doctorId") Long doctorId, @Param("workplaceId") Long workplaceId, @Param("appointmentDate") String appointmentDate);
+    
+    /**
+     * Count appointments by doctor, workplace, date and status (e.g., BOOKED)
+     */
+    long countByDoctorIdAndWorkplaceIdAndAppointmentDateAndStatus(@Param("doctorId") Long doctorId, @Param("workplaceId") Long workplaceId, @Param("appointmentDate") String appointmentDate, @Param("status") String status);
+
+    /**
+     * Count future appointments for a doctor/workplace where appointmentDate > :date and status matches
+     */
+    long countByDoctorIdAndWorkplaceIdAndAppointmentDateGreaterThanAndStatus(@Param("doctorId") Long doctorId, @Param("workplaceId") Long workplaceId, @Param("appointmentDate") String appointmentDate, @Param("status") String status);
     
     /**
      * Count appointments by doctor and date

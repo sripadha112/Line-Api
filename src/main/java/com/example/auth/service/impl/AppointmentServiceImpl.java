@@ -4,7 +4,6 @@ import com.example.auth.dto.*;
 import com.example.auth.entity.Appointment;
 import com.example.auth.entity.DoctorDetails;
 import com.example.auth.entity.DoctorWorkplace;
-import com.example.auth.entity.FutureTwoDayAppointment;
 import com.example.auth.repository.*;
 import com.example.auth.service.AppointmentService;
 import jakarta.transaction.Transactional;
@@ -21,18 +20,20 @@ import java.util.stream.Collectors;
 public class AppointmentServiceImpl implements AppointmentService {
 
     private final AppointmentRepository appointmentRepo;
-    private final FutureTwoDayAppointmentRepository futureAppointmentRepo;
     private final DoctorDetailsRepository doctorRepo;
     private final DoctorWorkplaceRepository workplaceRepo;
     private final UserDetailsRepository userRepo;
 
+    // keep future repo bean for compatibility but avoid using it at runtime
+    // private final FutureTwoDayAppointmentRepository futureAppointmentRepo;
+
     public AppointmentServiceImpl(AppointmentRepository appointmentRepo,
-                                  FutureTwoDayAppointmentRepository futureAppointmentRepo,
+                                  /* FutureTwoDayAppointmentRepository futureAppointmentRepo, */
                                   DoctorDetailsRepository doctorRepo,
                                   DoctorWorkplaceRepository workplaceRepo,
                                   UserDetailsRepository userRepo) {
         this.appointmentRepo = appointmentRepo;
-        this.futureAppointmentRepo = futureAppointmentRepo;
+        // this.futureAppointmentRepo = futureAppointmentRepo;
         this.doctorRepo = doctorRepo;
         this.workplaceRepo = workplaceRepo;
         this.userRepo = userRepo;
@@ -261,26 +262,26 @@ public class AppointmentServiceImpl implements AppointmentService {
             appointmentRepo.save(appointment);
             
         } else {
-            // Book in future appointments table
-            FutureTwoDayAppointment futureAppointment = new FutureTwoDayAppointment();
-            futureAppointment.setUserId(userId);
-            futureAppointment.setDoctorId(req.getDoctorId());
-            futureAppointment.setDoctorName(doctor.getFullName());
-            futureAppointment.setDoctorSpecialization(doctor.getSpecialization());
-            futureAppointment.setWorkplaceId(req.getWorkplaceId());
-            futureAppointment.setWorkplaceName(workspace.getWorkplaceName());
-            futureAppointment.setWorkplaceType(workspace.getWorkplaceType());
-            futureAppointment.setWorkplaceAddress(workspace.getAddress());
-            futureAppointment.setAppointmentDate(appointmentDateStr);
-            futureAppointment.setSlot(req.getSlot());
-            futureAppointment.setAppointmentTime(req.getRequestedTime());
-            futureAppointment.setDurationMinutes(durationMinutes);
-            futureAppointment.setStatus("BOOKED");
-            futureAppointment.setNotes(req.getNotes());
-            futureAppointment.setQueuePosition(getNextQueuePositionFuture(req.getDoctorId(), req.getWorkplaceId(), appointmentDateStr));
-            futureAppointment.setCreatedAt(OffsetDateTime.now());
+            // Book in future appointments: persist into appointments table instead of separate future table
+            Appointment futureAppt = new Appointment();
+            futureAppt.setUserId(userId);
+            futureAppt.setDoctorId(req.getDoctorId());
+            futureAppt.setDoctorName(doctor.getFullName());
+            futureAppt.setDoctorSpecialization(doctor.getSpecialization());
+            futureAppt.setWorkplaceId(req.getWorkplaceId());
+            futureAppt.setWorkplaceName(workspace.getWorkplaceName());
+            futureAppt.setWorkplaceType(workspace.getWorkplaceType());
+            futureAppt.setWorkplaceAddress(workspace.getAddress());
+            futureAppt.setAppointmentDate(appointmentDateStr);
+            futureAppt.setSlot(req.getSlot());
+            futureAppt.setAppointmentTime(req.getRequestedTime());
+            futureAppt.setDurationMinutes(durationMinutes);
+            futureAppt.setStatus("BOOKED");
+            futureAppt.setNotes(req.getNotes());
+            futureAppt.setQueuePosition(getNextQueuePositionFuture(req.getDoctorId(), req.getWorkplaceId(), appointmentDateStr));
+            futureAppt.setCreatedAt(OffsetDateTime.now());
 
-            futureAppointmentRepo.save(futureAppointment);
+            appointmentRepo.save(futureAppt);
         }
 
         // Return simple success response
@@ -316,8 +317,8 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     private int getNextQueuePositionFuture(Long doctorId, Long workspaceId, String appointmentDate) {
-        // Count existing future appointments for the doctor on this date
-        long count = futureAppointmentRepo.countByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workspaceId, appointmentDate);
+        // Use appointments table counting for future dates as well
+        long count = appointmentRepo.countByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workspaceId, appointmentDate);
         return (int) count + 1;
     }
 
