@@ -25,6 +25,10 @@ public class BookAppointmentRequestDto {
     private String notes;
     
     private String status = "BOOKED";
+    
+    // Calendar integration fields
+    private String userCalendarAccessToken;
+    private String deviceType; // "ios" or "android"
 
     // Constructors
     public BookAppointmentRequestDto() {}
@@ -84,5 +88,21 @@ public class BookAppointmentRequestDto {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+    
+    public String getUserCalendarAccessToken() {
+        return userCalendarAccessToken;
+    }
+    
+    public void setUserCalendarAccessToken(String userCalendarAccessToken) {
+        this.userCalendarAccessToken = userCalendarAccessToken;
+    }
+    
+    public String getDeviceType() {
+        return deviceType;
+    }
+    
+    public void setDeviceType(String deviceType) {
+        this.deviceType = deviceType;
     }
 }

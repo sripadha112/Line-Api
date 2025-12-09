@@ -66,6 +66,12 @@ public class Appointment {
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
+    @Column(name = "calendar_event_id")
+    private String calendarEventId; // ID of the calendar event created in Google/Apple Calendar
+
+    @Column(name = "calendar_service_type", length = 20)
+    private String calendarServiceType; // GOOGLE_CALENDAR, APPLE_CALENDAR
+
     // getters & setters
 
     public Long getId() { return id; }
@@ -121,4 +127,10 @@ public class Appointment {
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getCalendarEventId() { return calendarEventId; }
+    public void setCalendarEventId(String calendarEventId) { this.calendarEventId = calendarEventId; }
+
+    public String getCalendarServiceType() { return calendarServiceType; }
+    public void setCalendarServiceType(String calendarServiceType) { this.calendarServiceType = calendarServiceType; }
 }

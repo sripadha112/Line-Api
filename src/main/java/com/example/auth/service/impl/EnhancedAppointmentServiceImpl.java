@@ -3,9 +3,14 @@ package com.example.auth.service.impl;
 import com.example.auth.dto.*;
 import com.example.auth.entity.*;
 import com.example.auth.repository.*;
+import com.example.auth.service.AppointmentCalendarService;
 import com.example.auth.service.EnhancedAppointmentService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -25,6 +30,9 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     private final DoctorDetailsRepository doctorRepository;
     private final DoctorWorkplaceRepository workplaceRepository;
     private final UserDetailsRepository userRepository;
+
+    @Autowired
+    private AppointmentCalendarService appointmentCalendarService;
 
     public EnhancedAppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
@@ -240,6 +248,27 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         appointment.setQueuePosition(getNextQueuePosition(request.getDoctorId(), request.getWorkplaceId(), request.getAppointmentDate()));
         
         Appointment saved = appointmentRepository.save(appointment);
+        
+        // Create calendar event for the appointment
+        try {
+            HttpServletRequest httpRequest = getCurrentHttpRequest();
+            if (httpRequest != null && request.getUserCalendarAccessToken() != null) {
+                UserDetails user = userRepository.findById(request.getUserId()).orElse(null);
+                String calendarEventId = appointmentCalendarService.createCalendarEvent(
+                    saved, doctor, user, request.getUserCalendarAccessToken(), httpRequest
+                );
+                
+                if (calendarEventId != null) {
+                    saved.setCalendarEventId(calendarEventId);
+                    saved = appointmentRepository.save(saved);
+                }
+            }
+        } catch (Exception e) {
+            // Calendar integration failure should not affect appointment booking
+            // Log the error but continue with the appointment creation
+            System.err.println("Calendar integration failed for appointment " + saved.getId() + ": " + e.getMessage());
+        }
+        
         return convertToUserAppointmentDto(saved);
     }
 
@@ -263,6 +292,26 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         appointment.setQueuePosition(getNextQueuePosition(request.getDoctorId(), request.getWorkplaceId(), request.getAppointmentDate()));
 
         Appointment saved = appointmentRepository.save(appointment);
+        
+        // Create calendar event for the future appointment
+        try {
+            HttpServletRequest httpRequest = getCurrentHttpRequest();
+            if (httpRequest != null && request.getUserCalendarAccessToken() != null) {
+                UserDetails user = userRepository.findById(request.getUserId()).orElse(null);
+                String calendarEventId = appointmentCalendarService.createCalendarEvent(
+                    saved, doctor, user, request.getUserCalendarAccessToken(), httpRequest
+                );
+                
+                if (calendarEventId != null) {
+                    saved.setCalendarEventId(calendarEventId);
+                    saved = appointmentRepository.save(saved);
+                }
+            }
+        } catch (Exception e) {
+            // Calendar integration failure should not affect appointment booking
+            System.err.println("Calendar integration failed for appointment " + saved.getId() + ": " + e.getMessage());
+        }
+        
         return convertToUserAppointmentDto(saved);
     }
 
@@ -316,10 +365,33 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     @Override
     @Transactional
     public String cancelAppointment(Long appointmentId) {
+        return cancelAppointment(appointmentId, null);
+    }
+    
+    public String cancelAppointment(Long appointmentId, String userCalendarAccessToken) {
         // Try to find in current appointments
         Optional<Appointment> currentAppointment = appointmentRepository.findById(appointmentId);
         if (currentAppointment.isPresent()) {
             Appointment appointment = currentAppointment.get();
+            
+            // Delete calendar event if exists
+            if (appointment.getCalendarEventId() != null && userCalendarAccessToken != null) {
+                try {
+                    HttpServletRequest httpRequest = getCurrentHttpRequest();
+                    if (httpRequest != null) {
+                        boolean deleted = appointmentCalendarService.deleteCalendarEvent(
+                            appointment, userCalendarAccessToken, httpRequest
+                        );
+                        if (deleted) {
+                            System.out.println("Calendar event deleted successfully for appointment " + appointmentId);
+                        }
+                    }
+                } catch (Exception e) {
+                    // Calendar deletion failure should not prevent appointment cancellation
+                    System.err.println("Calendar event deletion failed for appointment " + appointmentId + ": " + e.getMessage());
+                }
+            }
+            
             appointment.setStatus("CANCELLED");
             appointmentRepository.save(appointment);
             return "Appointment cancelled successfully";
@@ -350,6 +422,20 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         Optional<Appointment> currentAppointment = appointmentRepository.findById(appointmentId);
         if (currentAppointment.isPresent()) {
             Appointment appointment = currentAppointment.get();
+            
+            // Delete existing calendar event if exists
+            if (appointment.getCalendarEventId() != null && request.getUserCalendarAccessToken() != null) {
+                try {
+                    HttpServletRequest httpRequest = getCurrentHttpRequest();
+                    if (httpRequest != null) {
+                        appointmentCalendarService.deleteCalendarEvent(
+                            appointment, request.getUserCalendarAccessToken(), httpRequest
+                        );
+                    }
+                } catch (Exception e) {
+                    System.err.println("Calendar event deletion failed during reschedule: " + e.getMessage());
+                }
+            }
             
             // Mark original appointment as rescheduled
             appointment.setStatus("RESCHEDULED");
@@ -686,6 +772,18 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             throw new RuntimeException("Rescheduling is only allowed for today or within next 2 days");
         }
     }
+
+    /**
+     * Helper method to get current HTTP request from RequestContextHolder
+     */
+    private HttpServletRequest getCurrentHttpRequest() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            return attributes.getRequest();
+        } catch (Exception e) {
+            return null;
+        }
+    }
     
     private void createRescheduledAppointment(Appointment originalAppointment, UserRescheduleRequestDto request) {
         // Create new appointment in the appointments table (no date restrictions)
@@ -708,7 +806,29 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         newAppointment.setQueuePosition(getNextQueuePosition(originalAppointment.getDoctorId(), 
                 originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
         
-        appointmentRepository.save(newAppointment);
+        Appointment savedAppointment = appointmentRepository.save(newAppointment);
+        
+        // Create new calendar event for the rescheduled appointment
+        if (request.getUserCalendarAccessToken() != null) {
+            try {
+                HttpServletRequest httpRequest = getCurrentHttpRequest();
+                if (httpRequest != null) {
+                    UserDetails user = userRepository.findById(originalAppointment.getUserId()).orElse(null);
+                    DoctorDetails doctor = doctorRepository.findById(originalAppointment.getDoctorId()).orElse(null);
+                    
+                    String calendarEventId = appointmentCalendarService.createCalendarEvent(
+                        savedAppointment, doctor, user, request.getUserCalendarAccessToken(), httpRequest
+                    );
+                    
+                    if (calendarEventId != null) {
+                        savedAppointment.setCalendarEventId(calendarEventId);
+                        appointmentRepository.save(savedAppointment);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Calendar event creation failed during reschedule: " + e.getMessage());
+            }
+        }
     }
     
     private void createRescheduledAppointmentFromFuture(Appointment originalAppointment, UserRescheduleRequestDto request) {

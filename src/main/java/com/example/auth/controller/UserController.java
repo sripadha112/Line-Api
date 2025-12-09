@@ -3,10 +3,14 @@ package com.example.auth.controller;
 import com.example.auth.dto.*;
 import com.example.auth.service.AppointmentService;
 import com.example.auth.service.EnhancedAppointmentService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,6 +18,8 @@ import java.util.Map;
 @RequestMapping("/api/user")
 public class UserController {
 
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+    
     private final AppointmentService svc;
     private final EnhancedAppointmentService enhancedAppointmentService;
 
@@ -52,19 +58,47 @@ public class UserController {
     
     /**
      * 3. Book an appointment (stores in appropriate table based on date)
+     * Includes calendar integration based on device type
      */
-//    @PostMapping("/appointments/book")
-//    public ResponseEntity<UserAppointmentDto> bookAppointment(@Valid @RequestBody BookAppointmentRequestDto request) {
-//        UserAppointmentDto appointment = enhancedAppointmentService.bookAppointment(request);
-//        return ResponseEntity.status(201).body(appointment);
-//    }
+    @PostMapping("/appointments/book")
+    public ResponseEntity<UserAppointmentDto> bookAppointment(
+            @Valid @RequestBody BookAppointmentRequestDto request,
+            @RequestHeader(value = "X-Calendar-Token", required = false) String calendarToken,
+            @RequestHeader(value = "X-Device-Type", required = false) String deviceType,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("📅 BOOK: Received booking request for user: {}, doctor: {}", 
+                   request.getUserId(), request.getDoctorId());
+        logger.info("🔑 BOOK: Calendar token present: {}", calendarToken != null);
+        logger.info("📱 BOOK: Device type: {}", deviceType);
+        logger.info("🌐 BOOK: Request from IP: {}", httpRequest.getRemoteAddr());
+        logger.info("📝 BOOK: Request details: date={}, slot={}", request.getAppointmentDate(), request.getSlot());
+        
+        UserAppointmentDto appointment = enhancedAppointmentService.bookAppointment(request);
+        
+        logger.info("✅ BOOK: Successfully booked appointment with ID: {}", appointment.getId());
+        return ResponseEntity.status(201).body(appointment);
+    }
     
     /**
      * 4. Cancel an appointment
+     * Includes calendar event deletion if calendar token is provided
      */
     @DeleteMapping("/appointments/{appointmentId}/cancel")
-    public ResponseEntity<Map<String, String>> cancelAppointment(@PathVariable("appointmentId") Long appointmentId) {
-        String result = enhancedAppointmentService.cancelAppointment(appointmentId);
+    public ResponseEntity<Map<String, String>> cancelAppointment(
+            @PathVariable("appointmentId") Long appointmentId,
+            @RequestHeader(value = "X-Calendar-Token", required = false) String calendarToken,
+            @RequestHeader(value = "X-Device-Type", required = false) String deviceType,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("❌ CANCEL: Received cancellation request for appointment ID: {}", appointmentId);
+        logger.info("🔑 CANCEL: Calendar token present: {}", calendarToken != null);
+        logger.info("📱 CANCEL: Device type: {}", deviceType);
+        logger.info("🌐 CANCEL: Request from IP: {}", httpRequest.getRemoteAddr());
+        
+        String result = enhancedAppointmentService.cancelAppointment(appointmentId, calendarToken);
+        
+        logger.info("✅ CANCEL: Successfully cancelled appointment: {}", result);
         return ResponseEntity.ok(Map.of("message", result));
     }
     
@@ -90,10 +124,21 @@ public class UserController {
      */
     @PutMapping("/appointments/reschedule")
     public ResponseEntity<Map<String, String>> rescheduleAppointmentBody(
-            @Valid @RequestBody UserRescheduleRequestDto request) {
+            @Valid @RequestBody UserRescheduleRequestDto request,
+            @RequestHeader(value = "X-Calendar-Token", required = false) String calendarToken,
+            @RequestHeader(value = "X-Device-Type", required = false) String deviceType,
+            HttpServletRequest httpRequest) {
+        
+        logger.info("🔄 RESCHEDULE: Received reschedule request for appointment ID: {}", request.getAppointmentId());
+        logger.info("🔑 RESCHEDULE: Calendar token present: {}", calendarToken != null);
+        logger.info("📱 RESCHEDULE: Device type: {}", deviceType);
+        logger.info("🌐 RESCHEDULE: Request from IP: {}", httpRequest.getRemoteAddr());
+        logger.info("📝 RESCHEDULE: New date={}, new slot={}", request.getNewAppointmentDate(), request.getNewTimeSlot());
         
         // The appointmentId should already be in the request body
         String result = enhancedAppointmentService.rescheduleUserAppointment(request);
+        
+        logger.info("✅ RESCHEDULE: Successfully rescheduled appointment: {}", result);
         return ResponseEntity.ok(Map.of("message", result));
     }
 
@@ -101,12 +146,12 @@ public class UserController {
     // LEGACY APIs (kept for backward compatibility)
     // ========================
 
-    @PostMapping("/{userId}/appointments/book")
-    public ResponseEntity<BookAppointmentResponse> book(@PathVariable("userId") Long userId,
-                                               @Valid @RequestBody BookAppointmentRequest req) {
-        BookAppointmentResponse response = svc.bookAppointmentEnhanced(userId, req);
-        return ResponseEntity.status(201).body(response);
-    }
+    // @PostMapping("/{userId}/appointments/book")
+    // public ResponseEntity<BookAppointmentResponse> book(@PathVariable("userId") Long userId,
+    //                                            @Valid @RequestBody BookAppointmentRequest req) {
+    //     BookAppointmentResponse response = svc.bookAppointmentEnhanced(userId, req);
+    //     return ResponseEntity.status(201).body(response);
+    // }
 
 //    @DeleteMapping("/{userId}/appointments/{appointmentId}")
 //    public ResponseEntity<AppointmentDto> cancel(@PathVariable("userId") Long userId,
@@ -127,5 +172,41 @@ public class UserController {
     @GetMapping("/{userId}/appointments")
     public ResponseEntity<List<AppointmentDto>> myAppointments(@PathVariable("userId") Long userId) {
         return ResponseEntity.ok(svc.getUserAppointments(userId));
+    }
+
+    // ========================
+    // CALENDAR INTEGRATION TEST
+    // ========================
+    
+    /**
+     * Test calendar integration functionality
+     */
+    @GetMapping("/calendar/test")
+    public ResponseEntity<Map<String, Object>> testCalendarIntegration(
+            @RequestHeader(value = "X-Calendar-Token", required = false) String calendarToken,
+            @RequestHeader(value = "X-Device-Type", required = false) String deviceType,
+            HttpServletRequest request) {
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Calendar integration is ready and functional");
+        response.put("calendarTokenProvided", calendarToken != null);
+        response.put("deviceTypeHeader", deviceType);
+        response.put("userAgent", request.getHeader("User-Agent"));
+        
+        // OAuth2 endpoints
+        response.put("googleOAuth2", Map.of(
+            "authUrl", "/api/oauth2/google/auth-url",
+            "callbackUrl", "/api/oauth2/google/callback",
+            "configUrl", "/api/oauth2/google/config"
+        ));
+        
+        // API endpoints that support calendar integration
+        response.put("calendarIntegratedAPIs", Map.of(
+            "booking", "POST /api/user/appointments/book",
+            "cancellation", "DELETE /api/user/appointments/{appointmentId}/cancel",
+            "rescheduling", "PUT /api/user/appointments/reschedule"
+        ));
+        
+        return ResponseEntity.ok(response);
     }
 }

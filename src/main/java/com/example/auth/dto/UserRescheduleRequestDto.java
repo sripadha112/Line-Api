@@ -17,6 +17,10 @@ public class UserRescheduleRequestDto {
     @NotBlank(message = "New time slot is required")
     private String newTimeSlot; // Format: "HH:mm-HH:mm" (e.g., "09:00-09:30")
     
+    // Calendar integration fields
+    private String userCalendarAccessToken;
+    private String deviceType; // "ios" or "android"
+    
     // Default constructor
     public UserRescheduleRequestDto() {}
     
@@ -59,5 +63,21 @@ public class UserRescheduleRequestDto {
     
     public void setNewTimeSlot(String newTimeSlot) {
         this.newTimeSlot = newTimeSlot;
+    }
+    
+    public String getUserCalendarAccessToken() {
+        return userCalendarAccessToken;
+    }
+    
+    public void setUserCalendarAccessToken(String userCalendarAccessToken) {
+        this.userCalendarAccessToken = userCalendarAccessToken;
+    }
+    
+    public String getDeviceType() {
+        return deviceType;
+    }
+    
+    public void setDeviceType(String deviceType) {
+        this.deviceType = deviceType;
     }
 }

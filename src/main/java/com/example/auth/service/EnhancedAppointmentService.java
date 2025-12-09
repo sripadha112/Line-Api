@@ -20,6 +20,8 @@ public interface EnhancedAppointmentService {
     
     String cancelAppointment(Long appointmentId);
     
+    String cancelAppointment(Long appointmentId, String userCalendarAccessToken);
+    
     String rescheduleUserAppointment(UserRescheduleRequestDto request);
     
     void moveAppointmentsToCurrentDay();
