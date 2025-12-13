@@ -9,15 +9,15 @@ services:
     region: singapore # Choose: oregon, frankfurt, singapore, etc.
     plan: free # or starter, standard, pro
     
-    # Docker configuration
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    # Docker configuration - using pre-built image from Docker Hub
+    image:
+      url: sripadha112/line_application:latest
     
     # Health check configuration
     healthCheckPath: /actuator/health
     
-    # Auto-deploy configuration
-    branch: main # Deploy from main branch
+    # Auto-deploy configuration (optional - can manually deploy new image versions)
+    # branch: main # Deploy from main branch
     
     # Environment variables
     envVars:
