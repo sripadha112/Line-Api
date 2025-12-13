@@ -4,6 +4,7 @@ import com.example.auth.dto.*;
 import com.example.auth.entity.*;
 import com.example.auth.repository.*;
 import com.example.auth.service.EnhancedAppointmentService;
+import com.example.auth.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     private final DoctorDetailsRepository doctorRepository;
     private final DoctorWorkplaceRepository workplaceRepository;
     private final UserDetailsRepository userRepository;
+    private final NotificationService notificationService;
 
     public EnhancedAppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
@@ -32,13 +34,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             PastAppointmentRepository pastAppointmentRepository,
             DoctorDetailsRepository doctorRepository,
             DoctorWorkplaceRepository workplaceRepository,
-            UserDetailsRepository userRepository) {
+            UserDetailsRepository userRepository,
+            NotificationService notificationService) {
         this.appointmentRepository = appointmentRepository;
     // this.futureAppointmentRepository = futureAppointmentRepository;
         this.pastAppointmentRepository = pastAppointmentRepository;
         this.doctorRepository = doctorRepository;
         this.workplaceRepository = workplaceRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -54,7 +58,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         // Filter to only include appointments from today onwards
         List<UserAppointmentDto> currentAppointmentDtos = allCurrentAppointments.stream()
                 .filter(appointment -> appointment.getAppointmentDate().compareTo(today) >= 0) // Only today and future
-                .filter(appointment -> "BOOKED".equals(appointment.getStatus())) // Only booked appointments
+//                .filter(appointment -> "BOOKED".equals(appointment.getStatus())) // Only booked appointments
                 .map(this::convertToUserAppointmentDto)
                 .collect(Collectors.toList());
         
@@ -240,6 +244,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         appointment.setQueuePosition(getNextQueuePosition(request.getDoctorId(), request.getWorkplaceId(), request.getAppointmentDate()));
         
         Appointment saved = appointmentRepository.save(appointment);
+        
+        // Send booking confirmation notification
+        sendAppointmentNotification(request.getUserId(),
+            "Appointment Confirmed",
+            String.format("Your appointment with %s is confirmed for %s at %s.",
+                doctor.getFullName(), request.getAppointmentDate(), request.getSlot()),
+            "APPOINTMENT_BOOKED"
+        );
+        
         return convertToUserAppointmentDto(saved);
     }
 
@@ -263,6 +276,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         appointment.setQueuePosition(getNextQueuePosition(request.getDoctorId(), request.getWorkplaceId(), request.getAppointmentDate()));
 
         Appointment saved = appointmentRepository.save(appointment);
+        
+        // Send booking confirmation notification
+        sendAppointmentNotification(request.getUserId(),
+            "Appointment Confirmed",
+            String.format("Your appointment with %s is confirmed for %s at %s.",
+                doctor.getFullName(), request.getAppointmentDate(), request.getSlot()),
+            "APPOINTMENT_BOOKED"
+        );
+        
         return convertToUserAppointmentDto(saved);
     }
 
@@ -322,6 +344,21 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             Appointment appointment = currentAppointment.get();
             appointment.setStatus("CANCELLED");
             appointmentRepository.save(appointment);
+            
+            // Send automatic push notification to user
+            String notificationTitle = "Appointment Cancelled";
+            String notificationBody = String.format("Your appointment with %s on %s at %s has been cancelled.",
+                appointment.getDoctorName(),
+                appointment.getAppointmentDate(),
+                appointment.getSlot()
+            );
+            
+            sendAppointmentNotification(appointment.getUserId(), 
+                notificationTitle, 
+                notificationBody, 
+                "APPOINTMENT_CANCELLED"
+            );
+            
             return "Appointment cancelled successfully";
         }
         
@@ -358,6 +395,20 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             
             // Create new appointment with the new date and time - always in appointments table
             createRescheduledAppointment(appointment, request);
+            
+            // Send automatic push notification to user
+            String notificationTitle = "Appointment Rescheduled";
+            String notificationBody = String.format("Your appointment with %s has been rescheduled to %s at %s.",
+                appointment.getDoctorName(),
+                request.getNewAppointmentDate(),
+                request.getNewTimeSlot()
+            );
+            
+            sendAppointmentNotification(appointment.getUserId(), 
+                notificationTitle, 
+                notificationBody, 
+                "APPOINTMENT_RESCHEDULED"
+            );
             
             return "Appointment rescheduled successfully";
         }
@@ -504,6 +555,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                     
                     // Move to past appointments for historical tracking
                     moveToPastAppointment(appointment);
+                    
+                    // Send notification to user
+                    sendAppointmentNotification(appointment.getUserId(),
+                        "Appointment Completed",
+                        String.format("Your appointment with %s on %s has been marked as completed.",
+                            appointment.getDoctorName(), appointment.getAppointmentDate()),
+                        "APPOINTMENT_COMPLETED"
+                    );
+                    
                     updatedCount++;
                     break;
                     
@@ -511,6 +571,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                     appointment.setStatus("CANCELLED");
                     appointment.setNotes(request.getNotes());
                     appointmentRepository.save(appointment);
+                    
+                    // Send notification to user
+                    sendAppointmentNotification(appointment.getUserId(),
+                        "Appointment Cancelled",
+                        String.format("Your appointment with %s on %s at %s has been cancelled by the doctor.",
+                            appointment.getDoctorName(), appointment.getAppointmentDate(), appointment.getSlot()),
+                        "APPOINTMENT_CANCELLED_BY_DOCTOR"
+                    );
+                    
                     updatedCount++;
                     break;
                     
@@ -523,6 +592,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                         
                         // Create new appointment
                         createRescheduledAppointment(appointment, request);
+                        
+                        // Send notification to user
+                        sendAppointmentNotification(appointment.getUserId(),
+                            "Appointment Rescheduled",
+                            String.format("Your appointment with %s has been rescheduled to %s at %s.",
+                                appointment.getDoctorName(), request.getNewAppointmentDate(), request.getNewTimeSlot()),
+                            "APPOINTMENT_RESCHEDULED_BY_DOCTOR"
+                        );
+                        
                         updatedCount++;
                     } else {
                         throw new RuntimeException("New appointment date and time slot are required for rescheduling");
@@ -733,5 +811,98 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 originalAppointment.getWorkplaceId(), request.getNewAppointmentDate()));
         
         appointmentRepository.save(newAppointment);
+    }
+    
+    // ==================== FCM TOKEN MANAGEMENT ====================
+    
+    @Override
+    @Transactional
+    public boolean updateFcmToken(Long userId, String fcmToken, String deviceType) {
+        try {
+            Optional<UserDetails> userOpt = userRepository.findById(userId);
+            if (userOpt.isPresent()) {
+                UserDetails user = userOpt.get();
+                user.setFcmToken(fcmToken);
+                user.setDeviceType(deviceType.toLowerCase());
+                // lastTokenUpdate is set automatically in the setter
+                userRepository.save(user);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    @Override
+    @Transactional
+    public boolean toggleNotifications(Long userId, Boolean enabled) {
+        try {
+            Optional<UserDetails> userOpt = userRepository.findById(userId);
+            if (userOpt.isPresent()) {
+                UserDetails user = userOpt.get();
+                user.setNotificationsEnabled(enabled);
+                userRepository.save(user);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    @Override
+    public void sendAppointmentNotification(Long userId, String title, String body, String notificationType) {
+        try {
+            Optional<UserDetails> userOpt = userRepository.findById(userId);
+            if (userOpt.isPresent()) {
+                UserDetails user = userOpt.get();
+                
+                // Check if user has notifications enabled and has FCM token
+                if (user.getNotificationsEnabled() != null && user.getNotificationsEnabled() 
+                    && user.getFcmToken() != null && !user.getFcmToken().trim().isEmpty()) {
+                    
+                    // Create notification with appointment-specific data
+                    NotificationRequestDto notificationRequest = new NotificationRequestDto();
+                    notificationRequest.setDeviceToken(user.getFcmToken());
+                    notificationRequest.setTitle(title);
+                    notificationRequest.setBody(body);
+                    
+                    // Add platform-specific configuration for proper system notifications
+                    if ("android".equalsIgnoreCase(user.getDeviceType())) {
+                        AndroidConfigDto androidConfig = new AndroidConfigDto();
+                        androidConfig.setChannelId("appointment_updates");
+                        androidConfig.setPriority("high");
+                        androidConfig.setSound("default");
+                        notificationRequest.setAndroidConfig(androidConfig);
+                    } else if ("ios".equalsIgnoreCase(user.getDeviceType())) {
+                        IOSConfigDto iosConfig = new IOSConfigDto();
+                        iosConfig.setSound("default");
+                        iosConfig.setBadge(1);
+                        iosConfig.setContentAvailable(true);
+                        notificationRequest.setIosConfig(iosConfig);
+                    }
+                    
+                    // Add data payload for app-specific handling
+                    Map<String, String> data = new HashMap<>();
+                    data.put("type", notificationType);
+                    data.put("userId", userId.toString());
+                    data.put("timestamp", String.valueOf(System.currentTimeMillis()));
+                    notificationRequest.setData(data);
+                    
+                    // Send notification
+                    NotificationResponseDto response = notificationService.sendNotificationToDevice(notificationRequest);
+                    
+                    // Log result (you can enhance this with proper logging)
+                    System.out.println("Notification sent to user " + userId + ": " + 
+                        (response.isSuccess() ? "Success - " + response.getMessageId() : "Failed - " + response.getErrorMessage()));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Failed to send notification to user " + userId + ": " + e.getMessage());
+        }
     }
 }

@@ -1,0 +1,68 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.iws
+.project
+.classpath
+.settings/
+
+# Build artifacts
+target/
+bin/
+build/
+out/
+
+# Firebase credentials - CRITICAL: Never include in Docker image
+src/main/resources/firebase-service-account-key.json
+src/main/resources/line-application-84af7-firebase-adminsdk-fbsvc-a8505ed76a.json
+firebase-service-account-*.json
+line-application-*-firebase-adminsdk-*.json
+**/GoogleService-Info.plist
+**/google-services.json
+
+# Firebase Base64 files
+firebase-credentials-base64.txt
+firebase-base64.txt
+*-base64.txt
+
+# Documentation
+*.md
+README.md
+SETUP_CHECKLIST.md
+RENDER_DEPLOYMENT_GUIDE.md
+
+# Test and setup scripts
+test-*.ps1
+test-*.sh
+setup-*.ps1
+setup-*.bat
+
+# React Native folder
+react-native-fcm-integration/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~

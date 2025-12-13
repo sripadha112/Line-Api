@@ -41,28 +41,39 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Transactional
     public RegistrationResponse registerUser(UserRegistrationDto userRegistrationDto) {
         try {
-            // Check if user already exists
+            // Check if user already exists by mobile number
             Optional<UserDetails> existingUser = userDetailsRepository.findByMobileNumber(userRegistrationDto.getMobileNumber());
             if (existingUser.isPresent()) {
-                return RegistrationResponse.error("User with this mobile number already exists");
+                // Return error with existing userId - no rollback needed
+                return RegistrationResponse.error("User with this mobile number already exists", existingUser.get().getId());
             }
 
-            // Check if email already exists
-            Optional<UserDetails> existingEmail = userDetailsRepository.findByEmail(userRegistrationDto.getEmail());
-            if (existingEmail.isPresent()) {
-                return RegistrationResponse.error("User with this email already exists");
+            // Check if email already exists (only if email is provided)
+            if (userRegistrationDto.getEmail() != null && !userRegistrationDto.getEmail().trim().isEmpty()) {
+                Optional<UserDetails> existingEmail = userDetailsRepository.findByEmail(userRegistrationDto.getEmail());
+                if (existingEmail.isPresent()) {
+                    return RegistrationResponse.error("User with this email already exists", existingEmail.get().getId());
+                }
             }
 
             // Create new user
             UserDetails userDetails = new UserDetails();
             userDetails.setMobileNumber(userRegistrationDto.getMobileNumber());
             userDetails.setFullName(userRegistrationDto.getFullName());
-            userDetails.setEmail(userRegistrationDto.getEmail());
-            userDetails.setAddress(userRegistrationDto.getAddress());
-            userDetails.setCity(userRegistrationDto.getCity());
-            userDetails.setState(userRegistrationDto.getState());
-            userDetails.setPincode(userRegistrationDto.getPincode());
-            userDetails.setCountry(userRegistrationDto.getCountry());
+            
+            // Only set email if provided and not empty
+            if (userRegistrationDto.getEmail() != null && !userRegistrationDto.getEmail().trim().isEmpty()) {
+                userDetails.setEmail(userRegistrationDto.getEmail().trim());
+            } else {
+                userDetails.setEmail(null);  // Explicitly set to null if empty
+            }
+            
+            // Set other fields, converting empty strings to null
+            userDetails.setAddress(isNotEmpty(userRegistrationDto.getAddress()) ? userRegistrationDto.getAddress() : null);
+            userDetails.setCity(isNotEmpty(userRegistrationDto.getCity()) ? userRegistrationDto.getCity() : null);
+            userDetails.setState(isNotEmpty(userRegistrationDto.getState()) ? userRegistrationDto.getState() : null);
+            userDetails.setPincode(isNotEmpty(userRegistrationDto.getPincode()) ? userRegistrationDto.getPincode() : null);
+            userDetails.setCountry(isNotEmpty(userRegistrationDto.getCountry()) ? userRegistrationDto.getCountry() : null);
             userDetails.setCreatedAt(OffsetDateTime.now());
 
             UserDetails savedUser = userDetailsRepository.save(userDetails);
@@ -231,5 +242,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         dto.setIsPrimary(workplace.getIsPrimary());
         dto.setCreatedAt(workplace.getCreatedAt());
         return dto;
+    }
+    
+    /**
+     * Helper method to check if a string is not null and not empty after trimming
+     */
+    private boolean isNotEmpty(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

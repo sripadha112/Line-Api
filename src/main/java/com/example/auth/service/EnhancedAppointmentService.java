@@ -39,4 +39,21 @@ public interface EnhancedAppointmentService {
      * Supports COMPLETED, RESCHEDULED, and CANCELLED statuses
      */
     String bulkUpdateAppointmentStatus(Long doctorId, String appointmentDate, BulkAppointmentStatusUpdateDto request);
+    
+    // ==================== FCM TOKEN MANAGEMENT ====================
+    
+    /**
+     * Update FCM token for a user
+     */
+    boolean updateFcmToken(Long userId, String fcmToken, String deviceType);
+    
+    /**
+     * Toggle notification settings for a user
+     */
+    boolean toggleNotifications(Long userId, Boolean enabled);
+    
+    /**
+     * Send automatic push notification for appointment changes
+     */
+    void sendAppointmentNotification(Long userId, String title, String body, String notificationType);
 }

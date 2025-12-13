@@ -45,6 +45,19 @@ public class UserDetails {
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
+    // FCM Token for Push Notifications
+    @Column(name = "fcm_token", length = 500)
+    private String fcmToken;
+
+    @Column(name = "device_type", length = 20)
+    private String deviceType; // "android" or "ios"
+
+    @Column(name = "last_token_update")
+    private OffsetDateTime lastTokenUpdate;
+
+    @Column(name = "notifications_enabled")
+    private Boolean notificationsEnabled = true;
+
     // Medical Profile Fields
     // Basic Vitals
     @Column(name = "height_cm")
@@ -236,6 +249,22 @@ public class UserDetails {
 
     public String getFamilyMedicalHistory() { return familyMedicalHistory; }
     public void setFamilyMedicalHistory(String familyMedicalHistory) { this.familyMedicalHistory = familyMedicalHistory; }
+
+    // FCM Token Getters and Setters
+    public String getFcmToken() { return fcmToken; }
+    public void setFcmToken(String fcmToken) { 
+        this.fcmToken = fcmToken; 
+        this.lastTokenUpdate = OffsetDateTime.now();
+    }
+
+    public String getDeviceType() { return deviceType; }
+    public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
+
+    public OffsetDateTime getLastTokenUpdate() { return lastTokenUpdate; }
+    public void setLastTokenUpdate(OffsetDateTime lastTokenUpdate) { this.lastTokenUpdate = lastTokenUpdate; }
+
+    public Boolean getNotificationsEnabled() { return notificationsEnabled; }
+    public void setNotificationsEnabled(Boolean notificationsEnabled) { this.notificationsEnabled = notificationsEnabled; }
 
     @PreUpdate
     public void preUpdate() {

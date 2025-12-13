@@ -39,6 +39,12 @@ public class RegistrationResponse {
         return new RegistrationResponse(message, "ERROR");
     }
 
+    public static RegistrationResponse error(String message, Long userId) {
+        RegistrationResponse response = new RegistrationResponse(message, "ERROR");
+        response.setUserId(userId);
+        return response;
+    }
+
     // Getters and Setters
     public String getMessage() {
         return message;

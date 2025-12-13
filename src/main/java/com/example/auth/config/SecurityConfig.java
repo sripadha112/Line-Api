@@ -43,7 +43,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/register/**", "/api/registration/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/user/**", "/api/doctor/**", "/api/doctors/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/register/**", "/api/registration/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/user/**", "/api/doctor/**", "/api/doctors/**", "/api/notifications/**", "/api/test/**").permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());

@@ -15,7 +15,7 @@ public class UserRegistrationDto {
     @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")
     private String fullName;
 
-    @NotBlank(message = "Email is required")
+    // Email is optional - only validates if provided
     @Email(message = "Email should be valid")
     @Size(max = 100, message = "Email must not exceed 100 characters")
     private String email;
@@ -28,7 +28,7 @@ public class UserRegistrationDto {
     @Size(max = 100, message = "State must not exceed 100 characters")
     private String state;
 
-    @Pattern(regexp="^\\d{6,10}$", message = "Pincode must be 6-10 digits")
+    // Pincode is optional - no validation required
     private String pincode;
 
     @Size(max = 100, message = "Country must not exceed 100 characters")

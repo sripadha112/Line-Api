@@ -1,0 +1,82 @@
+# Render Blueprint for Line Backend Application
+# This file defines your infrastructure as code
+
+services:
+  # Web Service - Spring Boot Application
+  - type: web
+    name: line-backend
+    env: docker
+    region: singapore # Choose: oregon, frankfurt, singapore, etc.
+    plan: free # or starter, standard, pro
+    
+    # Docker configuration
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    
+    # Health check configuration
+    healthCheckPath: /actuator/health
+    
+    # Auto-deploy configuration
+    branch: main # Deploy from main branch
+    
+    # Environment variables
+    envVars:
+      # Server Configuration
+      - key: SERVER_PORT
+        value: 8080
+      
+      # Database Configuration (use Render PostgreSQL)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: line-backend-db
+          property: connectionString
+      
+      - key: DATABASE_USERNAME
+        fromDatabase:
+          name: line-backend-db
+          property: user
+      
+      - key: DATABASE_PASSWORD
+        fromDatabase:
+          name: line-backend-db
+          property: password
+      
+      # JWT Configuration
+      - key: JWT_SECRET
+        generateValue: true # Render generates a secure random value
+      
+      - key: JWT_EXPIRATION_MS
+        value: 2592000000
+      
+      # Admin Configuration
+      - key: ADMIN_USERNAME
+        value: admin
+      
+      - key: ADMIN_PASSWORD
+        generateValue: true # Render generates a secure random value
+      
+      - key: ADMIN_ROLES
+        value: ADMIN
+      
+      # Firebase Configuration - USE BASE64 ENCODED CREDENTIALS
+      # Set this in Render Dashboard as a secret
+      - key: FIREBASE_CREDENTIALS_BASE64
+        sync: false # Marked as secret, set manually in dashboard
+      
+      # Twilio Configuration - Set as secrets in Render Dashboard
+      - key: TWILIO_ACCOUNT_SID
+        sync: false # Set manually in dashboard as secret
+      
+      - key: TWILIO_AUTH_TOKEN
+        sync: false # Set manually in dashboard as secret
+      
+      - key: TWILIO_PHONE_NUMBER
+        sync: false # Set manually in dashboard as secret
+
+# Database
+databases:
+  - name: line-backend-db
+    databaseName: line_backend
+    plan: free # or starter, standard, pro
+    region: singapore # Same region as web service
+    ipAllowList: [] # Empty means accessible from your Render services only

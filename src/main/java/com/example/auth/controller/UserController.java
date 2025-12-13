@@ -128,4 +128,47 @@ public class UserController {
     public ResponseEntity<List<AppointmentDto>> myAppointments(@PathVariable("userId") Long userId) {
         return ResponseEntity.ok(svc.getUserAppointments(userId));
     }
+    
+    /**
+     * Register/Update FCM Token for Push Notifications
+     * Call this when app starts or token is refreshed
+     */
+    @PostMapping("/{userId}/fcm-token")
+    public ResponseEntity<Map<String, String>> registerFcmToken(
+            @PathVariable("userId") Long userId,
+            @RequestBody FcmTokenRequestDto request) {
+        boolean success = enhancedAppointmentService.updateFcmToken(userId, request.getFcmToken(), request.getDeviceType());
+        if (success) {
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "FCM token registered successfully"
+            ));
+        } else {
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error", 
+                "message", "Failed to register FCM token"
+            ));
+        }
+    }
+    
+    /**
+     * Enable/Disable Push Notifications
+     */
+    @PutMapping("/{userId}/notifications/toggle")
+    public ResponseEntity<Map<String, String>> toggleNotifications(
+            @PathVariable("userId") Long userId,
+            @RequestParam("enabled") Boolean enabled) {
+        boolean success = enhancedAppointmentService.toggleNotifications(userId, enabled);
+        if (success) {
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Notification settings updated"
+            ));
+        } else {
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", "Failed to update notification settings"
+            ));
+        }
+    }
 }
