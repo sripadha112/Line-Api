@@ -1,0 +1,39 @@
+package com.app.auth.dto;
+
+public class AuthResponse {
+    private String status;
+    private Role role;
+    private Long id;
+    private String fullName;
+    private String email;
+    private String mobileNumber;
+    private String token;
+
+    public AuthResponse() {}
+
+    public AuthResponse(String status, Role role, Long id, String fullName, String email, String mobileNumber, String token) {
+        this.status = status;
+        this.role = role;
+        this.id = id;
+        this.fullName = fullName;
+        this.email = email;
+        this.mobileNumber = mobileNumber;
+        this.token = token;
+    }
+
+    // getters & setters
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Role getRole() { return role; }
+    public void setRole(Role role) { this.role = role; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getMobileNumber() { return mobileNumber; }
+    public void setMobileNumber(String mobileNumber) { this.mobileNumber = mobileNumber; }
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
+}
