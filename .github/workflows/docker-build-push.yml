@@ -30,6 +30,21 @@ jobs:
         username: ${{ secrets.DOCKER_HUB_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
         
+    - name: Verify Docker Hub credentials
+      if: github.event_name != 'pull_request'
+      run: |
+        if [ -z "${{ secrets.DOCKER_HUB_USERNAME }}" ]; then
+          echo "❌ DOCKER_HUB_USERNAME secret is not set"
+          echo "Please add it in: https://github.com/${{ github.repository }}/settings/secrets/actions"
+          exit 1
+        fi
+        if [ -z "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" ]; then
+          echo "❌ DOCKER_HUB_ACCESS_TOKEN secret is not set"  
+          echo "Please add it in: https://github.com/${{ github.repository }}/settings/secrets/actions"
+          exit 1
+        fi
+        echo "✅ Docker Hub credentials configured correctly"
+        
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
