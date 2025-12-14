@@ -7,7 +7,12 @@ import com.app.auth.dto.OtpVerifySimpleDto;
 
 public interface AuthService {
     void requestOtp(OtpRequestDto request);
+    
     AuthResponse verifyOtp(OtpVerifyRequestDto request);
+
     AuthResponse verifyOtpSimple(OtpVerifySimpleDto request);
+
     void logout(String token);
+
+    AuthResponse verifyMobile(String mobileNumber);
 }

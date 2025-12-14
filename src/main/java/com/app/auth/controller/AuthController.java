@@ -25,6 +25,12 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/verify-mobile")
+    public ResponseEntity<AuthResponse> verifyMobile(@Valid @RequestBody String mobileNumber) {
+        AuthResponse response = authService.verifyMobile(mobileNumber);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/verify-otp")
     public ResponseEntity<AuthResponse> verifyOtp(@Valid @RequestBody OtpVerifySimpleDto otpVerifySimpleDto) {
         AuthResponse response = authService.verifyOtpSimple(otpVerifySimpleDto);

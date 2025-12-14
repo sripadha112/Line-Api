@@ -189,4 +189,25 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Invalid token");
         }
     }
+
+    @Override
+    public AuthResponse verifyMobile(String mobileNumber) {
+        // Check existing user
+        Optional<UserDetails> maybeUser = userRepo.findByMobileNumber(mobileNumber);
+        if (maybeUser.isPresent()) {
+            UserDetails u = maybeUser.get();
+            String token = jwtUtil.generateToken("USER:" + u.getId());
+            return new AuthResponse("LOGGED_IN", Role.USER, u.getId(), u.getFullName(), u.getEmail(), u.getMobileNumber(), token);
+        }
+
+        // Check existing doctor
+        Optional<DoctorDetails> maybeDoc = doctorRepo.findByMobileNumber(mobileNumber);
+        if (maybeDoc.isPresent()) {
+            DoctorDetails d = maybeDoc.get();
+            String token = jwtUtil.generateToken("DOCTOR:" + d.getId());
+            return new AuthResponse("LOGGED_IN", Role.DOCTOR, d.getId(), d.getFullName(), d.getEmail(), d.getMobileNumber(), token);
+        }
+
+        throw new IllegalArgumentException("User not found. Please register first.");
+    }
 }
