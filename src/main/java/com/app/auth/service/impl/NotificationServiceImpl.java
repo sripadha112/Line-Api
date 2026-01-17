@@ -24,11 +24,21 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public NotificationResponseDto sendNotificationToDevice(String deviceToken, String title, String body) {
         logger.info("Sending notification to device with token: {}...", 
-                   deviceToken != null ? deviceToken.substring(0, Math.min(deviceToken.length(), 10)) : "null");
+                   deviceToken != null ? deviceToken.substring(0, Math.min(deviceToken.length(), 20)) : "null");
 
         if (!StringUtils.hasText(deviceToken)) {
             logger.error("Device token is null or empty");
             return NotificationResponseDto.error("Device token is required", 400, deviceToken);
+        }
+
+        // Check if this is an Expo Push Token (not a native FCM token)
+        if (deviceToken.startsWith("ExponentPushToken[")) {
+            logger.warn("Received Expo Push Token instead of native FCM token. Token: {}...", 
+                       deviceToken.substring(0, Math.min(deviceToken.length(), 30)));
+            logger.warn("Expo Push Tokens require Expo's push notification service, not direct Firebase FCM.");
+            return NotificationResponseDto.error(
+                "Expo Push Token detected. Please use native FCM token for direct Firebase notifications.", 
+                400, deviceToken);
         }
 
         if (!StringUtils.hasText(title)) {
@@ -48,10 +58,18 @@ public class NotificationServiceImpl implements NotificationService {
                     .setBody(body)
                     .build();
 
-            // Build the message
+            // Build the message with Android-specific configuration for better delivery
             Message message = Message.builder()
                     .setToken(deviceToken)
                     .setNotification(notification)
+                    .setAndroidConfig(AndroidConfig.builder()
+                            .setPriority(AndroidConfig.Priority.HIGH)
+                            .setNotification(AndroidNotification.builder()
+                                    .setChannelId("default")
+                                    .setSound("default")
+                                    .setPriority(AndroidNotification.Priority.HIGH)
+                                    .build())
+                            .build())
                     .build();
 
             // Send the message
@@ -62,7 +80,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         } catch (FirebaseMessagingException e) {
             logger.error("Failed to send notification to device token {}: {}", 
-                        deviceToken.substring(0, Math.min(deviceToken.length(), 10)), e.getMessage(), e);
+                        deviceToken.substring(0, Math.min(deviceToken.length(), 20)), e.getMessage(), e);
             
             // Map Firebase error codes to appropriate HTTP status codes
             int statusCode = mapFirebaseErrorToHttpStatus(e.getMessagingErrorCode());
@@ -81,6 +99,18 @@ public class NotificationServiceImpl implements NotificationService {
         if (notificationRequest == null) {
             logger.error("Notification request is null");
             return NotificationResponseDto.error("Notification request is required", 400, null);
+        }
+
+        String deviceToken = notificationRequest.getDeviceToken();
+        
+        // Check if this is an Expo Push Token (not a native FCM token)
+        if (deviceToken != null && deviceToken.startsWith("ExponentPushToken[")) {
+            logger.warn("Received Expo Push Token instead of native FCM token. Token: {}...", 
+                       deviceToken.substring(0, Math.min(deviceToken.length(), 30)));
+            logger.warn("Expo Push Tokens require Expo's push notification service, not direct Firebase FCM.");
+            return NotificationResponseDto.error(
+                "Expo Push Token detected. Please use native FCM token for direct Firebase notifications.", 
+                400, deviceToken);
         }
 
         try {

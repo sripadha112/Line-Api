@@ -856,9 +856,23 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     @Override
     public void sendAppointmentNotification(Long userId, String title, String body, String notificationType) {
         try {
+            System.out.println("[NOTIFICATION] Attempting to send notification to user " + userId);
+            System.out.println("[NOTIFICATION] Title: " + title);
+            System.out.println("[NOTIFICATION] Body: " + body);
+            System.out.println("[NOTIFICATION] Type: " + notificationType);
+            
             Optional<UserDetails> userOpt = userRepository.findById(userId);
             if (userOpt.isPresent()) {
                 UserDetails user = userOpt.get();
+                
+                System.out.println("[NOTIFICATION] User found: " + user.getFullName());
+                System.out.println("[NOTIFICATION] Notifications enabled: " + user.getNotificationsEnabled());
+                System.out.println("[NOTIFICATION] FCM Token present: " + (user.getFcmToken() != null && !user.getFcmToken().trim().isEmpty()));
+                System.out.println("[NOTIFICATION] Device type: " + user.getDeviceType());
+                
+                if (user.getFcmToken() != null && !user.getFcmToken().trim().isEmpty()) {
+                    System.out.println("[NOTIFICATION] FCM Token preview: " + user.getFcmToken().substring(0, Math.min(30, user.getFcmToken().length())) + "...");
+                }
                 
                 // Check if user has notifications enabled and has FCM token
                 if (user.getNotificationsEnabled() != null && user.getNotificationsEnabled() 
@@ -893,16 +907,24 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                     notificationRequest.setData(data);
                     
                     // Send notification
+                    System.out.println("[NOTIFICATION] Sending notification to FCM...");
                     NotificationResponseDto response = notificationService.sendNotificationToDevice(notificationRequest);
                     
-                    // Log result (you can enhance this with proper logging)
-                    System.out.println("Notification sent to user " + userId + ": " + 
-                        (response.isSuccess() ? "Success - " + response.getMessageId() : "Failed - " + response.getErrorMessage()));
+                    // Log result
+                    if (response.isSuccess()) {
+                        System.out.println("[NOTIFICATION] SUCCESS - Message ID: " + response.getMessageId());
+                    } else {
+                        System.out.println("[NOTIFICATION] FAILED - Error: " + response.getErrorMessage());
+                    }
+                } else {
+                    System.out.println("[NOTIFICATION] Skipped - Notifications disabled or no FCM token");
                 }
+            } else {
+                System.out.println("[NOTIFICATION] User not found with ID: " + userId);
             }
         } catch (Exception e) {
             e.printStackTrace();
-            System.err.println("Failed to send notification to user " + userId + ": " + e.getMessage());
+            System.err.println("[NOTIFICATION] Exception while sending notification to user " + userId + ": " + e.getMessage());
         }
     }
 }
