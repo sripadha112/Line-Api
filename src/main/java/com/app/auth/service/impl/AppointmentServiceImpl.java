@@ -4,8 +4,10 @@ import com.app.auth.dto.*;
 import com.app.auth.entity.Appointment;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.DoctorWorkplace;
+import com.app.auth.entity.UserDetails;
 import com.app.auth.repository.*;
 import com.app.auth.service.AppointmentService;
+import com.app.auth.service.NotificationService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,6 +26,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final DoctorDetailsRepository doctorRepo;
     private final DoctorWorkplaceRepository workplaceRepo;
     private final UserDetailsRepository userRepo;
+    private final NotificationService notificationService;
 
     // keep future repo bean for compatibility but avoid using it at runtime
     // private final FutureTwoDayAppointmentRepository futureAppointmentRepo;
@@ -31,12 +35,14 @@ public class AppointmentServiceImpl implements AppointmentService {
                                   /* FutureTwoDayAppointmentRepository futureAppointmentRepo, */
                                   DoctorDetailsRepository doctorRepo,
                                   DoctorWorkplaceRepository workplaceRepo,
-                                  UserDetailsRepository userRepo) {
+                                  UserDetailsRepository userRepo,
+                                  NotificationService notificationService) {
         this.appointmentRepo = appointmentRepo;
         // this.futureAppointmentRepo = futureAppointmentRepo;
         this.doctorRepo = doctorRepo;
         this.workplaceRepo = workplaceRepo;
         this.userRepo = userRepo;
+        this.notificationService = notificationService;
     }
 
     private AppointmentDto toDto(Appointment a) {
@@ -67,6 +73,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     /**
      * Reschedule: shift appointments at/after startFrom (or from now) by shiftMinutes.
      * Uses DB locking for doctor's day to avoid races.
+     * Sends FCM notifications to affected users.
      */
     @Override
     @Transactional
@@ -86,6 +93,11 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         if (locked.isEmpty()) return Collections.emptyList();
 
+        // Get doctor name for notifications
+        String doctorName = doctorRepo.findById(doctorId)
+            .map(DoctorDetails::getFullName)
+            .orElse("Doctor");
+
         List<AppointmentDto> updated = new ArrayList<>();
         for (Appointment a : locked) {
             OffsetDateTime old = a.getAppointmentTime();
@@ -96,12 +108,66 @@ public class AppointmentServiceImpl implements AppointmentService {
             appointmentRepo.save(a);
             AppointmentDto dto = toDto(a);
             updated.add(dto);
+            
+            // Send FCM notification to the user
+            sendRescheduleNotification(a.getUserId(), doctorName, 
+                nu.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")),
+                nu.format(DateTimeFormatter.ofPattern("h:mm a")));
         }
         return updated;
+    }
+    
+    /**
+     * Helper method to send FCM notification for rescheduled appointments
+     */
+    private void sendRescheduleNotification(Long userId, String doctorName, String newDate, String newTime) {
+        try {
+            Optional<UserDetails> userOpt = userRepo.findById(userId);
+            if (userOpt.isPresent()) {
+                UserDetails user = userOpt.get();
+                if (user.getNotificationsEnabled() != null && user.getNotificationsEnabled()
+                    && user.getFcmToken() != null && !user.getFcmToken().trim().isEmpty()) {
+                    
+                    NotificationRequestDto request = new NotificationRequestDto();
+                    request.setDeviceToken(user.getFcmToken());
+                    request.setTitle("Appointment Rescheduled 📅");
+                    request.setBody(String.format("Your appointment with Dr. %s has been rescheduled to %s at %s.",
+                        doctorName, newDate, newTime));
+                    
+                    // Add platform-specific configuration
+                    if ("android".equalsIgnoreCase(user.getDeviceType())) {
+                        AndroidConfigDto androidConfig = new AndroidConfigDto();
+                        androidConfig.setChannelId("appointment_updates");
+                        androidConfig.setPriority("high");
+                        androidConfig.setSound("default");
+                        request.setAndroidConfig(androidConfig);
+                    } else if ("ios".equalsIgnoreCase(user.getDeviceType())) {
+                        IOSConfigDto iosConfig = new IOSConfigDto();
+                        iosConfig.setSound("default");
+                        iosConfig.setBadge(1);
+                        iosConfig.setContentAvailable(true);
+                        request.setIosConfig(iosConfig);
+                    }
+                    
+                    // Add data payload
+                    Map<String, String> data = new HashMap<>();
+                    data.put("type", "APPOINTMENT_RESCHEDULED_BY_DOCTOR");
+                    data.put("userId", userId.toString());
+                    data.put("timestamp", String.valueOf(System.currentTimeMillis()));
+                    request.setData(data);
+                    
+                    notificationService.sendNotificationToDevice(request);
+                    System.out.println("[NOTIFICATION] Sent reschedule notification to user " + userId);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[NOTIFICATION] Failed to send reschedule notification to user " + userId + ": " + e.getMessage());
+        }
     }
 
     /**
      * Cancel all appointments for a doctor's date
+     * Sends FCM notifications to affected users
      */
     @Override
     @Transactional
@@ -110,6 +176,11 @@ public class AppointmentServiceImpl implements AppointmentService {
         OffsetDateTime dayStart = OffsetDateTime.of(date, LocalTime.MIDNIGHT, ZoneOffset.UTC);
         OffsetDateTime dayEnd = dayStart.plusDays(1);
 
+        // Get doctor name for notifications
+        String doctorName = doctorRepo.findById(doctorId)
+            .map(DoctorDetails::getFullName)
+            .orElse("Doctor");
+
         List<Appointment> booked = appointmentRepo.findByDoctorIdAndAppointmentTimeBetweenAndStatusOrderByAppointmentTime(doctorId, dayStart, dayEnd, "BOOKED");
         List<Long> ids = new ArrayList<>();
         for (Appointment a : booked) {
@@ -117,9 +188,63 @@ public class AppointmentServiceImpl implements AppointmentService {
             a.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
             appointmentRepo.save(a);
             ids.add(a.getId());
-            // TODO: enqueue notification to user
+            
+            // Send FCM notification to the user
+            sendCancelNotification(a.getUserId(), doctorName, 
+                a.getAppointmentDate(),
+                a.getSlot() != null ? a.getSlot() : "scheduled time",
+                req.getReason());
         }
         return ids;
+    }
+    
+    /**
+     * Helper method to send FCM notification for cancelled appointments
+     */
+    private void sendCancelNotification(Long userId, String doctorName, String date, String time, String reason) {
+        try {
+            Optional<UserDetails> userOpt = userRepo.findById(userId);
+            if (userOpt.isPresent()) {
+                UserDetails user = userOpt.get();
+                if (user.getNotificationsEnabled() != null && user.getNotificationsEnabled()
+                    && user.getFcmToken() != null && !user.getFcmToken().trim().isEmpty()) {
+                    
+                    NotificationRequestDto request = new NotificationRequestDto();
+                    request.setDeviceToken(user.getFcmToken());
+                    request.setTitle("Appointment Cancelled ❌");
+                    request.setBody(String.format("Your appointment with Dr. %s on %s at %s has been cancelled.%s",
+                        doctorName, date, time,
+                        reason != null ? " Reason: " + reason : ""));
+                    
+                    // Add platform-specific configuration
+                    if ("android".equalsIgnoreCase(user.getDeviceType())) {
+                        AndroidConfigDto androidConfig = new AndroidConfigDto();
+                        androidConfig.setChannelId("appointment_updates");
+                        androidConfig.setPriority("high");
+                        androidConfig.setSound("default");
+                        request.setAndroidConfig(androidConfig);
+                    } else if ("ios".equalsIgnoreCase(user.getDeviceType())) {
+                        IOSConfigDto iosConfig = new IOSConfigDto();
+                        iosConfig.setSound("default");
+                        iosConfig.setBadge(1);
+                        iosConfig.setContentAvailable(true);
+                        request.setIosConfig(iosConfig);
+                    }
+                    
+                    // Add data payload
+                    Map<String, String> data = new HashMap<>();
+                    data.put("type", "APPOINTMENT_CANCELLED_BY_DOCTOR");
+                    data.put("userId", userId.toString());
+                    data.put("timestamp", String.valueOf(System.currentTimeMillis()));
+                    request.setData(data);
+                    
+                    notificationService.sendNotificationToDevice(request);
+                    System.out.println("[NOTIFICATION] Sent cancel notification to user " + userId);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[NOTIFICATION] Failed to send cancel notification to user " + userId + ": " + e.getMessage());
+        }
     }
 
     /**

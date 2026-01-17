@@ -424,6 +424,7 @@ public class DoctorController {
     /**
      * Cancel all appointments for a workspace on a specific date
      * Marks all BOOKED appointments as CANCELLED
+     * Sends FCM notifications to affected users
      */
     private String cancelAllWorkspaceAppointments(Long workspaceId, CancelDayRequest request) {
         String targetDate = request.getDate(); // Assuming CancelDayRequest has a date field
@@ -438,6 +439,19 @@ public class DoctorController {
                 appointment.setStatus("CANCELLED");
                 appointment.setNotes("Cancelled by doctor - " + (request.getReason() != null ? request.getReason() : "Day cancelled"));
                 appointmentRepository.save(appointment);
+                
+                // Send FCM notification to the user
+                enhancedAppointmentService.sendAppointmentNotification(
+                    appointment.getUserId(),
+                    "Appointment Cancelled ❌",
+                    String.format("Your appointment with Dr. %s on %s at %s has been cancelled. Reason: %s",
+                        appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                        appointment.getAppointmentDate(),
+                        appointment.getSlot() != null ? appointment.getSlot() : "scheduled time",
+                        request.getReason() != null ? request.getReason() : "Doctor cancelled all appointments for this day"),
+                    "APPOINTMENT_CANCELLED_BY_DOCTOR"
+                );
+                
                 cancelledCount++;
             }
         }

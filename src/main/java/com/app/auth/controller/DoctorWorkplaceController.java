@@ -271,6 +271,7 @@ public class DoctorWorkplaceController {
     /**
      * Mark an appointment as completed
      * Updates the appointment status to "COMPLETED" in the appointments table
+     * Sends FCM notification to the user
      * Usage: PUT /api/doctors/appointments/{appointmentId}/complete
      */
     @PutMapping("/appointments/{appointmentId}/complete")
@@ -301,6 +302,17 @@ public class DoctorWorkplaceController {
             // Save the updated appointment
             Appointment savedAppointment = appointmentRepository.save(appointment);
             
+            // Send FCM notification to the user
+            enhancedAppointmentService.sendAppointmentNotification(
+                appointment.getUserId(),
+                "Appointment Completed ✅",
+                String.format("Your appointment with Dr. %s on %s at %s has been completed. Thank you for visiting!",
+                    appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                    appointment.getAppointmentDate(),
+                    appointment.getSlot() != null ? appointment.getSlot() : "scheduled time"),
+                "APPOINTMENT_COMPLETED"
+            );
+            
             // Build success response
             Map<String, Object> response = Map.of(
                 "message", "Appointment marked as completed successfully",
@@ -323,7 +335,8 @@ public class DoctorWorkplaceController {
     
     /**
      * Cancel an appointment
-     * Updates the appointment status to "CANCELLED" in either appointments or future_2day_appointments table
+     * Updates the appointment status to "CANCELLED" in the appointments table
+     * Sends FCM notification to the user
      * Usage: PUT /api/doctors/appointments/{appointmentId}/cancel
      */
     @PutMapping("/appointments/{appointmentId}/cancel")
@@ -351,6 +364,17 @@ public class DoctorWorkplaceController {
                 // Save the updated appointment
                 Appointment savedAppointment = appointmentRepository.save(appointment);
                 
+                // Send FCM notification to the user
+                enhancedAppointmentService.sendAppointmentNotification(
+                    appointment.getUserId(),
+                    "Appointment Cancelled ❌",
+                    String.format("Your appointment with Dr. %s on %s at %s has been cancelled by the doctor.",
+                        appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                        appointment.getAppointmentDate(),
+                        appointment.getSlot() != null ? appointment.getSlot() : "scheduled time"),
+                    "APPOINTMENT_CANCELLED_BY_DOCTOR"
+                );
+                
                 // Build success response
                 Map<String, Object> response = Map.of(
                     "message", "Appointment cancelled successfully",
@@ -375,6 +399,122 @@ public class DoctorWorkplaceController {
                 "success", false
             );
             return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+    
+    /**
+     * Update single appointment status with FCM notification
+     * Handles COMPLETED, CANCELLED, and RESCHEDULED statuses
+     * Usage: PUT /api/doctors/appointments/{appointmentId}/status
+     */
+    @PutMapping("/appointments/{appointmentId}/status")
+    public ResponseEntity<Map<String, Object>> updateSingleAppointmentStatus(
+            @PathVariable("appointmentId") Long appointmentId,
+            @RequestBody Map<String, Object> request) {
+        try {
+            String status = (String) request.get("status");
+            String newDate = (String) request.get("newAppointmentDate");
+            String newSlot = (String) request.get("newTimeSlot");
+            String notes = (String) request.get("notes");
+            
+            if (status == null || status.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Status is required",
+                    "success", false
+                ));
+            }
+            
+            // Find the appointment
+            Optional<Appointment> appointmentOpt = appointmentRepository.findById(appointmentId);
+            
+            if (!appointmentOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Appointment appointment = appointmentOpt.get();
+            
+            // Check if appointment is in a status that can be updated
+            if (!"BOOKED".equals(appointment.getStatus()) && !"RESCHEDULED".equals(appointment.getStatus())) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Appointment cannot be updated. Current status: " + appointment.getStatus(),
+                    "success", false
+                ));
+            }
+            
+            String notificationTitle;
+            String notificationBody;
+            String notificationType;
+            
+            switch (status.toUpperCase()) {
+                case "COMPLETED":
+                    appointment.setStatus("COMPLETED");
+                    if (notes != null) appointment.setNotes(notes);
+                    notificationTitle = "Appointment Completed ✅";
+                    notificationBody = String.format("Your appointment with Dr. %s on %s at %s has been completed. Thank you for visiting!",
+                        appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                        appointment.getAppointmentDate(),
+                        appointment.getSlot() != null ? appointment.getSlot() : "scheduled time");
+                    notificationType = "APPOINTMENT_COMPLETED";
+                    break;
+                    
+                case "CANCELLED":
+                    appointment.setStatus("CANCELLED");
+                    if (notes != null) appointment.setNotes(notes);
+                    notificationTitle = "Appointment Cancelled ❌";
+                    notificationBody = String.format("Your appointment with Dr. %s on %s at %s has been cancelled by the doctor.",
+                        appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                        appointment.getAppointmentDate(),
+                        appointment.getSlot() != null ? appointment.getSlot() : "scheduled time");
+                    notificationType = "APPOINTMENT_CANCELLED_BY_DOCTOR";
+                    break;
+                    
+                case "RESCHEDULED":
+                    appointment.setStatus("RESCHEDULED");
+                    if (notes != null) appointment.setNotes(notes);
+                    notificationTitle = "Appointment Rescheduled 📅";
+                    if (newDate != null && newSlot != null) {
+                        notificationBody = String.format("Your appointment with Dr. %s has been rescheduled to %s at %s.",
+                            appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                            newDate, newSlot);
+                    } else {
+                        notificationBody = String.format("Your appointment with Dr. %s on %s has been marked for rescheduling. Please book a new appointment.",
+                            appointment.getDoctorName() != null ? appointment.getDoctorName() : "Doctor",
+                            appointment.getAppointmentDate());
+                    }
+                    notificationType = "APPOINTMENT_RESCHEDULED_BY_DOCTOR";
+                    break;
+                    
+                default:
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Invalid status: " + status + ". Allowed: COMPLETED, CANCELLED, RESCHEDULED",
+                        "success", false
+                    ));
+            }
+            
+            appointment.setUpdatedAt(java.time.OffsetDateTime.now());
+            Appointment savedAppointment = appointmentRepository.save(appointment);
+            
+            // Send FCM notification to the user
+            enhancedAppointmentService.sendAppointmentNotification(
+                appointment.getUserId(),
+                notificationTitle,
+                notificationBody,
+                notificationType
+            );
+            
+            return ResponseEntity.ok(Map.of(
+                "message", "Appointment status updated successfully",
+                "success", true,
+                "appointmentId", savedAppointment.getId(),
+                "status", savedAppointment.getStatus(),
+                "updatedAt", savedAppointment.getUpdatedAt()
+            ));
+            
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Failed to update appointment status: " + e.getMessage(),
+                "success", false
+            ));
         }
     }
     
