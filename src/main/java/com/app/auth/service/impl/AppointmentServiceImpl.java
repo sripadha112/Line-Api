@@ -156,8 +156,20 @@ public class AppointmentServiceImpl implements AppointmentService {
                     data.put("timestamp", String.valueOf(System.currentTimeMillis()));
                     request.setData(data);
                     
-                    notificationService.sendNotificationToDevice(request);
-                    System.out.println("[NOTIFICATION] Sent reschedule notification to user " + userId);
+                    NotificationResponseDto response = notificationService.sendNotificationToDevice(request);
+                    if (response.isSuccess()) {
+                        System.out.println("[NOTIFICATION] Sent reschedule notification to user " + userId);
+                    } else {
+                        System.out.println("[NOTIFICATION] Failed to send reschedule notification to user " + userId + ": " + response.getErrorMessage());
+                        // Clear invalid token if UNREGISTERED
+                        String errorMsg = response.getErrorMessage() != null ? response.getErrorMessage().toLowerCase() : "";
+                        if (errorMsg.contains("unregistered") || errorMsg.contains("not found") || errorMsg.contains("invalid")) {
+                            user.setFcmToken(null);
+                            user.setDeviceType(null);
+                            userRepo.save(user);
+                            System.out.println("[NOTIFICATION] Cleared invalid FCM token for user " + userId);
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
@@ -238,8 +250,20 @@ public class AppointmentServiceImpl implements AppointmentService {
                     data.put("timestamp", String.valueOf(System.currentTimeMillis()));
                     request.setData(data);
                     
-                    notificationService.sendNotificationToDevice(request);
-                    System.out.println("[NOTIFICATION] Sent cancel notification to user " + userId);
+                    NotificationResponseDto response = notificationService.sendNotificationToDevice(request);
+                    if (response.isSuccess()) {
+                        System.out.println("[NOTIFICATION] Sent cancel notification to user " + userId);
+                    } else {
+                        System.out.println("[NOTIFICATION] Failed to send cancel notification to user " + userId + ": " + response.getErrorMessage());
+                        // Clear invalid token if UNREGISTERED
+                        String errorMsg = response.getErrorMessage() != null ? response.getErrorMessage().toLowerCase() : "";
+                        if (errorMsg.contains("unregistered") || errorMsg.contains("not found") || errorMsg.contains("invalid")) {
+                            user.setFcmToken(null);
+                            user.setDeviceType(null);
+                            userRepo.save(user);
+                            System.out.println("[NOTIFICATION] Cleared invalid FCM token for user " + userId);
+                        }
+                    }
                 }
             }
         } catch (Exception e) {

@@ -1,25 +1,32 @@
 package com.app.auth.service.impl;
 
 import com.app.auth.dto.*;
+import com.app.auth.service.ExpoPushNotificationService;
 import com.app.auth.service.NotificationService;
 import com.google.firebase.messaging.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 /**
  * Implementation of NotificationService using Firebase Cloud Messaging
+ * Now also supports Expo Push Notifications for Expo Push Tokens
  */
 @Service
 public class NotificationServiceImpl implements NotificationService {
 
     private static final Logger logger = LoggerFactory.getLogger(NotificationServiceImpl.class);
+    
+    @Autowired
+    private ExpoPushNotificationService expoPushNotificationService;
 
     @Override
     public NotificationResponseDto sendNotificationToDevice(String deviceToken, String title, String body) {
@@ -31,14 +38,10 @@ public class NotificationServiceImpl implements NotificationService {
             return NotificationResponseDto.error("Device token is required", 400, deviceToken);
         }
 
-        // Check if this is an Expo Push Token (not a native FCM token)
-        if (deviceToken.startsWith("ExponentPushToken[")) {
-            logger.warn("Received Expo Push Token instead of native FCM token. Token: {}...", 
-                       deviceToken.substring(0, Math.min(deviceToken.length(), 30)));
-            logger.warn("Expo Push Tokens require Expo's push notification service, not direct Firebase FCM.");
-            return NotificationResponseDto.error(
-                "Expo Push Token detected. Please use native FCM token for direct Firebase notifications.", 
-                400, deviceToken);
+        // Check if this is an Expo Push Token - route to Expo Push Service
+        if (expoPushNotificationService.isExpoPushToken(deviceToken)) {
+            logger.info("[EXPO] Routing to Expo Push Notification Service");
+            return expoPushNotificationService.sendNotification(deviceToken, title, body);
         }
 
         if (!StringUtils.hasText(title)) {
@@ -103,14 +106,16 @@ public class NotificationServiceImpl implements NotificationService {
 
         String deviceToken = notificationRequest.getDeviceToken();
         
-        // Check if this is an Expo Push Token (not a native FCM token)
-        if (deviceToken != null && deviceToken.startsWith("ExponentPushToken[")) {
-            logger.warn("Received Expo Push Token instead of native FCM token. Token: {}...", 
-                       deviceToken.substring(0, Math.min(deviceToken.length(), 30)));
-            logger.warn("Expo Push Tokens require Expo's push notification service, not direct Firebase FCM.");
-            return NotificationResponseDto.error(
-                "Expo Push Token detected. Please use native FCM token for direct Firebase notifications.", 
-                400, deviceToken);
+        // Check if this is an Expo Push Token - route to Expo Push Service
+        if (deviceToken != null && expoPushNotificationService.isExpoPushToken(deviceToken)) {
+            logger.info("[EXPO] Routing to Expo Push Notification Service");
+            Map<String, String> data = notificationRequest.getData();
+            return expoPushNotificationService.sendNotification(
+                deviceToken, 
+                notificationRequest.getTitle(), 
+                notificationRequest.getBody(),
+                data
+            );
         }
 
         try {

@@ -910,11 +910,23 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                     System.out.println("[NOTIFICATION] Sending notification to FCM...");
                     NotificationResponseDto response = notificationService.sendNotificationToDevice(notificationRequest);
                     
-                    // Log result
+                    // Log result and handle invalid tokens
                     if (response.isSuccess()) {
                         System.out.println("[NOTIFICATION] SUCCESS - Message ID: " + response.getMessageId());
                     } else {
                         System.out.println("[NOTIFICATION] FAILED - Error: " + response.getErrorMessage());
+                        
+                        // If token is invalid/unregistered, clear it from database
+                        // Common error messages for invalid tokens: "UNREGISTERED", "not found", "invalid"
+                        String errorMsg = response.getErrorMessage() != null ? response.getErrorMessage().toLowerCase() : "";
+                        if (errorMsg.contains("unregistered") || errorMsg.contains("not found") || 
+                            errorMsg.contains("invalid") || response.getStatusCode() == 404 || response.getStatusCode() == 400) {
+                            System.out.println("[NOTIFICATION] Clearing invalid FCM token for user " + userId);
+                            user.setFcmToken(null);
+                            user.setDeviceType(null);
+                            userRepository.save(user);
+                            System.out.println("[NOTIFICATION] FCM token cleared. User will get new token on next app open.");
+                        }
                     }
                 } else {
                     System.out.println("[NOTIFICATION] Skipped - Notifications disabled or no FCM token");
