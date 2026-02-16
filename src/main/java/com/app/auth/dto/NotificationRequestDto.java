@@ -73,6 +73,15 @@ public class NotificationRequestDto {
     public void setExpoPushToken(String expoPushToken) {
         this.expoPushToken = expoPushToken;
     }
+    
+    // Alias methods for backward compatibility (deviceToken = expoPushToken)
+    public String getDeviceToken() {
+        return expoPushToken;
+    }
+
+    public void setDeviceToken(String deviceToken) {
+        this.expoPushToken = deviceToken;
+    }
 
     public String getTitle() {
         return title;

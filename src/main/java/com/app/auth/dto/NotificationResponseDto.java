@@ -113,6 +113,14 @@ public class NotificationResponseDto {
     public void setExpoPushToken(String expoPushToken) {
         this.expoPushToken = expoPushToken;
     }
+    
+    public String getMessageId() {
+        return messageId;
+    }
+
+    public void setMessageId(String messageId) {
+        this.messageId = messageId;
+    }
 
     @Override
     public String toString() {
