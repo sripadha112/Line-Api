@@ -6,18 +6,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
 /**
- * Data Transfer Object for FCM notification responses
+ * Data Transfer Object for Expo push notification responses
  */
-@Schema(description = "Response object for Firebase Cloud Messaging notification operations")
+@Schema(description = "Response object for Expo Push Notification operations")
 public class NotificationResponseDto {
 
     @Schema(description = "Indicates if the notification was sent successfully", example = "true")
     @JsonProperty("success")
     private boolean success;
 
-    @Schema(description = "Firebase message ID returned upon successful send", example = "projects/myproject-b5ae1/messages/0:1234567890123456%31bd1c9631bd1c96")
-    @JsonProperty("messageId")
-    private String messageId;
+    @Schema(description = "Expo ticket ID returned upon successful send", example = "ExponentPushTicket[xxxxxxxxxxxxxxxxxxxxxx]")
+    @JsonProperty("ticketId")
+    private String ticketId;
 
     @Schema(description = "Error message if notification sending failed", example = "Invalid device token")
     @JsonProperty("errorMessage")
@@ -31,9 +31,13 @@ public class NotificationResponseDto {
     @JsonProperty("timestamp")
     private LocalDateTime timestamp;
 
-    @Schema(description = "Device token that was used for sending", example = "f1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
-    @JsonProperty("deviceToken")
-    private String deviceToken;
+    @Schema(description = "Expo push token that was used for sending", example = "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]")
+    @JsonProperty("expoPushToken")
+    private String expoPushToken;
+
+    @Schema(description = "Expo message ID returned upon successful send", example = "ExponentPushMessage[xxxxxxxxxxxxxxxxxxxxxx]")
+    @JsonProperty("messageId")
+    private String messageId;
 
     // Default constructor
     public NotificationResponseDto() {
@@ -43,21 +47,21 @@ public class NotificationResponseDto {
 
 
     // Static factory methods for common responses
-    public static NotificationResponseDto success(String messageId, String deviceToken) {
+    public static NotificationResponseDto success(String ticketId, String expoPushToken) {
         NotificationResponseDto response = new NotificationResponseDto();
         response.success = true;
-        response.messageId = messageId;
+        response.ticketId = ticketId;
         response.statusCode = 200;
-        response.deviceToken = deviceToken;
+        response.expoPushToken = expoPushToken;
         return response;
     }
 
-    public static NotificationResponseDto error(String errorMessage, int statusCode, String deviceToken) {
+    public static NotificationResponseDto error(String errorMessage, int statusCode, String expoPushToken) {
         NotificationResponseDto response = new NotificationResponseDto();
         response.success = false;
         response.errorMessage = errorMessage;
         response.statusCode = statusCode;
-        response.deviceToken = deviceToken;
+        response.expoPushToken = expoPushToken;
         return response;
     }
 
@@ -70,12 +74,12 @@ public class NotificationResponseDto {
         this.success = success;
     }
 
-    public String getMessageId() {
-        return messageId;
+    public String getTicketId() {
+        return ticketId;
     }
 
-    public void setMessageId(String messageId) {
-        this.messageId = messageId;
+    public void setTicketId(String ticketId) {
+        this.ticketId = ticketId;
     }
 
     public String getErrorMessage() {
@@ -102,12 +106,12 @@ public class NotificationResponseDto {
         this.timestamp = timestamp;
     }
 
-    public String getDeviceToken() {
-        return deviceToken;
+    public String getExpoPushToken() {
+        return expoPushToken;
     }
 
-    public void setDeviceToken(String deviceToken) {
-        this.deviceToken = deviceToken;
+    public void setExpoPushToken(String expoPushToken) {
+        this.expoPushToken = expoPushToken;
     }
 
     @Override
@@ -118,7 +122,7 @@ public class NotificationResponseDto {
                 ", errorMessage='" + errorMessage + '\'' +
                 ", statusCode=" + statusCode +
                 ", timestamp=" + timestamp +
-                ", deviceToken='" + (deviceToken != null ? deviceToken.substring(0, Math.min(deviceToken.length(), 10)) + "..." : "null") + '\'' +
+                ", expoPushToken='" + (expoPushToken != null ? expoPushToken.substring(0, Math.min(expoPushToken.length(), 10)) + "..." : "null") + '\'' +
                 '}';
     }
 }

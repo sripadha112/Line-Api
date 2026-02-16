@@ -85,10 +85,22 @@ public class ExpoPushNotificationServiceImpl implements ExpoPushNotificationServ
                 Map.class
             );
 
-            // Parse response
+            // Parse response - Expo returns { "data": [ { "status": "ok", "id": "xxx" } ] }
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
-                Map<String, Object> responseData = (Map<String, Object>) responseBody.get("data");
+                Object dataField = responseBody.get("data");
+                
+                Map<String, Object> responseData = null;
+                
+                // Handle both array format (standard) and object format
+                if (dataField instanceof List) {
+                    List<Map<String, Object>> dataList = (List<Map<String, Object>>) dataField;
+                    if (!dataList.isEmpty()) {
+                        responseData = dataList.get(0);
+                    }
+                } else if (dataField instanceof Map) {
+                    responseData = (Map<String, Object>) dataField;
+                }
                 
                 if (responseData != null) {
                     String status = (String) responseData.get("status");
@@ -100,7 +112,8 @@ public class ExpoPushNotificationServiceImpl implements ExpoPushNotificationServ
                     } else {
                         // Error in delivery
                         String errorMessage = (String) responseData.get("message");
-                        String errorDetails = (String) responseData.get("details");
+                        Object errorDetailsObj = responseData.get("details");
+                        String errorDetails = errorDetailsObj != null ? errorDetailsObj.toString() : null;
                         logger.error("[EXPO PUSH] FAILED - Status: {}, Message: {}, Details: {}", 
                                     status, errorMessage, errorDetails);
                         

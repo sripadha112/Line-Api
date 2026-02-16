@@ -4,14 +4,14 @@ import com.app.auth.dto.NotificationRequestDto;
 import com.app.auth.dto.NotificationResponseDto;
 
 /**
- * Service interface for Firebase Cloud Messaging operations
+ * Service interface for Expo Push Notification operations (Expo-only)
  */
 public interface NotificationService {
 
     /**
-     * Send a push notification to a specific device using FCM
+     * Send a push notification to a specific device using Expo Push Token
      *
-     * @param deviceToken FCM device token of the target device
+     * @param deviceToken Expo push token of the target device (ExponentPushToken[...])
      * @param title       Notification title
      * @param body        Notification body message
      * @return NotificationResponseDto containing the result of the operation
@@ -19,7 +19,7 @@ public interface NotificationService {
     NotificationResponseDto sendNotificationToDevice(String deviceToken, String title, String body);
 
     /**
-     * Send a push notification to a specific device using FCM with additional data
+     * Send a push notification to a specific device using Expo Push Token with additional data
      *
      * @param notificationRequest Request object containing all notification details
      * @return NotificationResponseDto containing the result of the operation
@@ -27,9 +27,9 @@ public interface NotificationService {
     NotificationResponseDto sendNotificationToDevice(NotificationRequestDto notificationRequest);
 
     /**
-     * Send notification to multiple devices
+     * Send notification to multiple devices (Expo push tokens only)
      *
-     * @param deviceTokens Array of FCM device tokens
+     * @param deviceTokens Array of Expo push tokens
      * @param title        Notification title
      * @param body         Notification body message
      * @return Array of NotificationResponseDto containing results for each device

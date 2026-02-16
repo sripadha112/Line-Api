@@ -8,15 +8,15 @@ import jakarta.validation.constraints.Size;
 import java.util.Map;
 
 /**
- * Data Transfer Object for FCM notification requests
+ * Data Transfer Object for Expo push notification requests
  */
-@Schema(description = "Request object for sending push notifications via Firebase Cloud Messaging")
+@Schema(description = "Request object for sending push notifications via Expo Push API")
 public class NotificationRequestDto {
 
-    @NotBlank(message = "Device token is required")
-    @Schema(description = "FCM device token of the target device", example = "f1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
-    @JsonProperty("deviceToken")
-    private String deviceToken;
+    @NotBlank(message = "Expo push token is required")
+    @Schema(description = "Expo push token of the target device (ExponentPushToken[...])", example = "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]")
+    @JsonProperty("expoPushToken")
+    private String expoPushToken;
 
     @NotBlank(message = "Title is required")
     @Size(max = 100, message = "Title must not exceed 100 characters")
@@ -59,19 +59,19 @@ public class NotificationRequestDto {
     }
 
     // Constructor with required fields
-    public NotificationRequestDto(String deviceToken, String title, String body) {
-        this.deviceToken = deviceToken;
+    public NotificationRequestDto(String expoPushToken, String title, String body) {
+        this.expoPushToken = expoPushToken;
         this.title = title;
         this.body = body;
     }
 
     // Getters and Setters
-    public String getDeviceToken() {
-        return deviceToken;
+    public String getExpoPushToken() {
+        return expoPushToken;
     }
 
-    public void setDeviceToken(String deviceToken) {
-        this.deviceToken = deviceToken;
+    public void setExpoPushToken(String expoPushToken) {
+        this.expoPushToken = expoPushToken;
     }
 
     public String getTitle() {
@@ -141,7 +141,7 @@ public class NotificationRequestDto {
     @Override
     public String toString() {
         return "NotificationRequestDto{" +
-                "deviceToken='" + (deviceToken != null ? deviceToken.substring(0, Math.min(deviceToken.length(), 10)) + "..." : "null") + '\'' +
+                "expoPushToken='" + (expoPushToken != null ? expoPushToken.substring(0, Math.min(expoPushToken.length(), 10)) + "..." : "null") + '\'' +
                 ", title='" + title + '\'' +
                 ", body='" + body + '\'' +
                 ", data=" + data +

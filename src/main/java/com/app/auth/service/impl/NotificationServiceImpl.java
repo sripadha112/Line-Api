@@ -3,7 +3,7 @@ package com.app.auth.service.impl;
 import com.app.auth.dto.*;
 import com.app.auth.service.ExpoPushNotificationService;
 import com.app.auth.service.NotificationService;
-import com.google.firebase.messaging.*;
+// Removed Firebase Admin SDK imports
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,60 +38,13 @@ public class NotificationServiceImpl implements NotificationService {
             return NotificationResponseDto.error("Device token is required", 400, deviceToken);
         }
 
-        // Check if this is an Expo Push Token - route to Expo Push Service
+        // Only allow Expo Push Tokens
         if (expoPushNotificationService.isExpoPushToken(deviceToken)) {
             logger.info("[EXPO] Routing to Expo Push Notification Service");
             return expoPushNotificationService.sendNotification(deviceToken, title, body);
-        }
-
-        if (!StringUtils.hasText(title)) {
-            logger.error("Notification title is null or empty");
-            return NotificationResponseDto.error("Title is required", 400, deviceToken);
-        }
-
-        if (!StringUtils.hasText(body)) {
-            logger.error("Notification body is null or empty");
-            return NotificationResponseDto.error("Body is required", 400, deviceToken);
-        }
-
-        try {
-            // Build the notification
-            Notification notification = Notification.builder()
-                    .setTitle(title)
-                    .setBody(body)
-                    .build();
-
-            // Build the message with Android-specific configuration for better delivery
-            Message message = Message.builder()
-                    .setToken(deviceToken)
-                    .setNotification(notification)
-                    .setAndroidConfig(AndroidConfig.builder()
-                            .setPriority(AndroidConfig.Priority.HIGH)
-                            .setNotification(AndroidNotification.builder()
-                                    .setChannelId("default")
-                                    .setSound("default")
-                                    .setPriority(AndroidNotification.Priority.HIGH)
-                                    .build())
-                            .build())
-                    .build();
-
-            // Send the message
-            String response = FirebaseMessaging.getInstance().send(message);
-            
-            logger.info("Successfully sent notification. Message ID: {}", response);
-            return NotificationResponseDto.success(response, deviceToken);
-
-        } catch (FirebaseMessagingException e) {
-            logger.error("Failed to send notification to device token {}: {}", 
-                        deviceToken.substring(0, Math.min(deviceToken.length(), 20)), e.getMessage(), e);
-            
-            // Map Firebase error codes to appropriate HTTP status codes
-            int statusCode = mapFirebaseErrorToHttpStatus(e.getMessagingErrorCode());
-            return NotificationResponseDto.error(e.getMessage(), statusCode, deviceToken);
-            
-        } catch (Exception e) {
-            logger.error("Unexpected error while sending notification: {}", e.getMessage(), e);
-            return NotificationResponseDto.error("Internal server error: " + e.getMessage(), 500, deviceToken);
+        } else {
+            logger.error("Non-Expo push tokens are not supported. Token: {}", deviceToken);
+            return NotificationResponseDto.error("Only Expo push tokens are supported in this deployment.", 400, deviceToken);
         }
     }
 
@@ -106,7 +59,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         String deviceToken = notificationRequest.getDeviceToken();
         
-        // Check if this is an Expo Push Token - route to Expo Push Service
+        // Only allow Expo Push Tokens
         if (deviceToken != null && expoPushNotificationService.isExpoPushToken(deviceToken)) {
             logger.info("[EXPO] Routing to Expo Push Notification Service");
             Map<String, String> data = notificationRequest.getData();
@@ -116,56 +69,9 @@ public class NotificationServiceImpl implements NotificationService {
                 notificationRequest.getBody(),
                 data
             );
-        }
-
-        try {
-            // Detect platform if auto-detect is enabled
-            Platform targetPlatform = notificationRequest.getPlatform();
-            if (targetPlatform == Platform.AUTO_DETECT) {
-                targetPlatform = detectPlatformFromToken(notificationRequest.getDeviceToken());
-            }
-
-            // Build the notification
-            Notification.Builder notificationBuilder = Notification.builder()
-                    .setTitle(notificationRequest.getTitle())
-                    .setBody(notificationRequest.getBody());
-
-            // Add image if provided
-            if (StringUtils.hasText(notificationRequest.getImageUrl())) {
-                notificationBuilder.setImage(notificationRequest.getImageUrl());
-            }
-
-            Notification notification = notificationBuilder.build();
-
-            // Build the message with platform-specific configurations
-            Message.Builder messageBuilder = Message.builder()
-                    .setToken(notificationRequest.getDeviceToken())
-                    .setNotification(notification);
-
-            // Add custom data if provided
-            if (notificationRequest.getData() != null && !notificationRequest.getData().isEmpty()) {
-                messageBuilder.putAllData(notificationRequest.getData());
-            }
-
-            // Configure platform-specific settings
-            configurePlatformSpecificSettings(messageBuilder, notificationRequest, targetPlatform);
-
-            Message message = messageBuilder.build();
-
-            // Send the message
-            String response = FirebaseMessaging.getInstance().send(message);
-            
-            logger.info("Successfully sent notification with data. Message ID: {}", response);
-            return NotificationResponseDto.success(response, notificationRequest.getDeviceToken());
-
-        } catch (FirebaseMessagingException e) {
-            logger.error("Failed to send notification: {}", e.getMessage(), e);
-            int statusCode = mapFirebaseErrorToHttpStatus(e.getMessagingErrorCode());
-            return NotificationResponseDto.error(e.getMessage(), statusCode, notificationRequest.getDeviceToken());
-            
-        } catch (Exception e) {
-            logger.error("Unexpected error while sending notification: {}", e.getMessage(), e);
-            return NotificationResponseDto.error("Internal server error: " + e.getMessage(), 500, notificationRequest.getDeviceToken());
+        } else {
+            logger.error("Non-Expo push tokens are not supported. Token: {}", deviceToken);
+            return NotificationResponseDto.error("Only Expo push tokens are supported in this deployment.", 400, deviceToken);
         }
     }
 
@@ -215,27 +121,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param errorCode Firebase messaging error code
      * @return HTTP status code
      */
-    private int mapFirebaseErrorToHttpStatus(MessagingErrorCode errorCode) {
-        if (errorCode == null) {
-            return 500;
-        }
-
-        switch (errorCode) {
-            case INVALID_ARGUMENT:
-            case UNREGISTERED:
-                return 400; // Bad Request
-            case SENDER_ID_MISMATCH:
-            case THIRD_PARTY_AUTH_ERROR:
-                return 401; // Unauthorized
-            case QUOTA_EXCEEDED:
-                return 429; // Too Many Requests
-            case UNAVAILABLE:
-            case INTERNAL:
-                return 503; // Service Unavailable
-            default:
-                return 500; // Internal Server Error
-        }
-    }
+    // Removed Firebase error code mapping, not needed for Expo only
 
     /**
      * Attempts to detect the platform from the FCM token structure
@@ -244,22 +130,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param deviceToken FCM device token
      * @return Detected platform or ANDROID as default
      */
-    private Platform detectPlatformFromToken(String deviceToken) {
-        if (!StringUtils.hasText(deviceToken)) {
-            logger.warn("Cannot detect platform from empty token, defaulting to Android");
-            return Platform.ANDROID;
-        }
-
-        // iOS FCM tokens are typically longer and have specific patterns
-        // This is a heuristic approach and may need adjustment based on actual token patterns
-        if (deviceToken.length() > 150) {
-            logger.debug("Token length suggests iOS device");
-            return Platform.IOS;
-        } else {
-            logger.debug("Token length suggests Android device");
-            return Platform.ANDROID;
-        }
-    }
+    // Removed platform detection, not needed for Expo only
 
     /**
      * Configures platform-specific notification settings
@@ -268,27 +139,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param request Notification request with platform configurations
      * @param platform Target platform
      */
-    private void configurePlatformSpecificSettings(Message.Builder messageBuilder, 
-                                                 NotificationRequestDto request, 
-                                                 Platform platform) {
-        logger.debug("Configuring platform-specific settings for: {}", platform);
-
-        if (platform == Platform.IOS) {
-            configureIOSSettings(messageBuilder, request);
-        } else if (platform == Platform.ANDROID) {
-            configureAndroidSettings(messageBuilder, request);
-        }
-
-        // Set high priority if requested
-        if (Boolean.TRUE.equals(request.getHighPriority())) {
-            logger.debug("Setting high priority for immediate delivery");
-            if (platform == Platform.ANDROID) {
-                // High priority is handled in Android config
-            } else {
-                // For iOS, we use APNS push type
-            }
-        }
-    }
+    // Removed platform-specific config, not needed for Expo only
 
     /**
      * Configures iOS-specific APNS settings
@@ -296,60 +147,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param messageBuilder Message builder to configure
      * @param request Notification request with iOS configuration
      */
-    private void configureIOSSettings(Message.Builder messageBuilder, NotificationRequestDto request) {
-        logger.debug("Configuring iOS APNS settings");
-
-        ApnsConfig.Builder apnsBuilder = ApnsConfig.builder();
-        Aps.Builder apsBuilder = Aps.builder();
-
-        IOSConfigDto iosConfig = request.getIosConfig();
-        
-        if (iosConfig != null) {
-            // Configure sound
-            if (StringUtils.hasText(iosConfig.getSound())) {
-                apsBuilder.setSound(iosConfig.getSound());
-            } else {
-                apsBuilder.setSound("default");
-            }
-
-            // Configure badge
-            if (iosConfig.getBadge() != null) {
-                apsBuilder.setBadge(iosConfig.getBadge());
-            }
-
-            // Configure content-available for background processing
-            if (Boolean.TRUE.equals(iosConfig.getContentAvailable())) {
-                apsBuilder.setContentAvailable(true);
-            }
-
-            // Configure mutable-content for notification service extensions
-            if (Boolean.TRUE.equals(iosConfig.getMutableContent())) {
-                apsBuilder.setMutableContent(true);
-            }
-
-            // Configure category
-            if (StringUtils.hasText(iosConfig.getCategory())) {
-                apsBuilder.setCategory(iosConfig.getCategory());
-            }
-
-            // Configure thread ID
-            if (StringUtils.hasText(iosConfig.getThreadId())) {
-                apsBuilder.setThreadId(iosConfig.getThreadId());
-            }
-        } else {
-            // Default iOS configuration
-            apsBuilder.setSound("default");
-        }
-
-        // Set high priority for iOS if requested
-        if (Boolean.TRUE.equals(request.getHighPriority())) {
-            apnsBuilder.putHeader("apns-priority", "10");
-            apnsBuilder.putHeader("apns-push-type", "alert");
-        }
-
-        apnsBuilder.setAps(apsBuilder.build());
-        messageBuilder.setApnsConfig(apnsBuilder.build());
-    }
+    // Removed iOS config, not needed for Expo only
 
     /**
      * Configures Android-specific notification settings
@@ -357,78 +155,7 @@ public class NotificationServiceImpl implements NotificationService {
      * @param messageBuilder Message builder to configure
      * @param request Notification request with Android configuration
      */
-    private void configureAndroidSettings(Message.Builder messageBuilder, NotificationRequestDto request) {
-        logger.debug("Configuring Android notification settings");
-
-        AndroidConfig.Builder androidBuilder = AndroidConfig.builder();
-        AndroidNotification.Builder notificationBuilder = AndroidNotification.builder();
-
-        AndroidConfigDto androidConfig = request.getAndroidConfig();
-
-        if (androidConfig != null) {
-            // Configure notification channel
-            if (StringUtils.hasText(androidConfig.getChannelId())) {
-                notificationBuilder.setChannelId(androidConfig.getChannelId());
-            } else {
-                notificationBuilder.setChannelId("default");
-            }
-
-            // Configure priority
-            if (StringUtils.hasText(androidConfig.getPriority())) {
-                AndroidConfig.Priority priority = mapAndroidPriority(androidConfig.getPriority());
-                androidBuilder.setPriority(priority);
-            } else {
-                androidBuilder.setPriority(AndroidConfig.Priority.HIGH);
-            }
-
-            // Configure sound
-            if (StringUtils.hasText(androidConfig.getSound())) {
-                notificationBuilder.setSound(androidConfig.getSound());
-            }
-
-            // Configure icon
-            if (StringUtils.hasText(androidConfig.getIcon())) {
-                notificationBuilder.setIcon(androidConfig.getIcon());
-            }
-
-            // Configure color
-            if (StringUtils.hasText(androidConfig.getColor())) {
-                notificationBuilder.setColor(androidConfig.getColor());
-            }
-
-            // Configure tag
-            if (StringUtils.hasText(androidConfig.getTag())) {
-                notificationBuilder.setTag(androidConfig.getTag());
-            }
-
-            // Configure click action
-            if (StringUtils.hasText(androidConfig.getClickAction())) {
-                notificationBuilder.setClickAction(androidConfig.getClickAction());
-            }
-
-            // Configure TTL
-            if (androidConfig.getTtl() != null) {
-                androidBuilder.setTtl(androidConfig.getTtl() * 1000); // Convert to milliseconds
-            }
-
-            // Configure restricted package name
-            if (StringUtils.hasText(androidConfig.getRestrictedPackageName())) {
-                androidBuilder.setRestrictedPackageName(androidConfig.getRestrictedPackageName());
-            }
-        } else {
-            // Default Android configuration
-            notificationBuilder.setChannelId("default");
-            androidBuilder.setPriority(AndroidConfig.Priority.HIGH);
-        }
-
-        // Set high priority for Android if requested
-        if (Boolean.TRUE.equals(request.getHighPriority())) {
-            androidBuilder.setPriority(AndroidConfig.Priority.HIGH);
-        }
-
-        androidBuilder.setNotification(notificationBuilder.build());
-        messageBuilder.setAndroidConfig(androidBuilder.build());
-    }
+    // Removed Android config, not needed for Expo only
 
     /**
      * Maps string priority to AndroidConfig.Priority enum
@@ -436,19 +163,5 @@ public class NotificationServiceImpl implements NotificationService {
      * @param priority Priority string
      * @return AndroidConfig.Priority enum value
      */
-    private AndroidConfig.Priority mapAndroidPriority(String priority) {
-        if (priority == null) {
-            return AndroidConfig.Priority.NORMAL;
-        }
-
-        switch (priority.toLowerCase()) {
-            case "high":
-                return AndroidConfig.Priority.HIGH;
-            case "normal":
-                return AndroidConfig.Priority.NORMAL;
-            default:
-                logger.warn("Unknown Android priority: {}, defaulting to NORMAL", priority);
-                return AndroidConfig.Priority.NORMAL;
-        }
-    }
+    // Removed Android priority mapping, not needed for Expo only
 }
