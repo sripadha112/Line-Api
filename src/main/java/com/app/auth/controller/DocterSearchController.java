@@ -2,6 +2,7 @@ package com.app.auth.controller;
 
 import com.app.auth.dto.DoctorSearchDto;
 import com.app.auth.dto.DoctorSearchResponseDto;
+import com.app.auth.dto.PaginatedDoctorResponseDto;
 import com.app.auth.service.DoctorService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,6 +35,14 @@ public class DocterSearchController {
     public ResponseEntity<List<DoctorSearchResponseDto>> findNearbyDoctors(
             @RequestParam("location") String location) {
         List<DoctorSearchResponseDto> results = doctorService.findNearbyDoctors(location);
+        return ResponseEntity.ok(results);
+    }
+    
+    @GetMapping("/all")
+    public ResponseEntity<PaginatedDoctorResponseDto> getAllDoctorsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        PaginatedDoctorResponseDto results = doctorService.getAllDoctorsPaginated(page, size);
         return ResponseEntity.ok(results);
     }
 }

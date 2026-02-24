@@ -2,11 +2,15 @@ package com.app.auth.service.impl;
 
 import com.app.auth.dto.DoctorSearchDto;
 import com.app.auth.dto.DoctorSearchResponseDto;
+import com.app.auth.dto.PaginatedDoctorResponseDto;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.DoctorWorkplace;
 import com.app.auth.repository.DoctorRepository;
 import com.app.auth.repository.DoctorWorkplaceRepository;
 import com.app.auth.service.DoctorService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
@@ -221,5 +225,35 @@ public class DoctorServiceImpl implements DoctorService {
         }
         
         return new ArrayList<>(doctorMap.values());
+    }
+
+    @Override
+    public PaginatedDoctorResponseDto getAllDoctorsPaginated(int page, int size) {
+        System.out.println("[DEBUG] Getting all doctors paginated - page: " + page + ", size: " + size);
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<DoctorDetails> doctorPage = doctorRepository.findAllDoctorsPaginated(pageable);
+        
+        System.out.println("[DEBUG] Found " + doctorPage.getTotalElements() + " total doctors");
+        
+        List<DoctorSearchResponseDto> doctors = doctorPage.getContent().stream()
+            .map(doctor -> {
+                DoctorSearchResponseDto dto = createDoctorDto(doctor);
+                dto.setWorkplaces(getAllWorkplacesForDoctor(doctor.getId()));
+                return dto;
+            })
+            .collect(Collectors.toList());
+        
+        return new PaginatedDoctorResponseDto(
+            doctors,
+            doctorPage.getNumber(),
+            doctorPage.getTotalPages(),
+            doctorPage.getTotalElements(),
+            doctorPage.getSize(),
+            doctorPage.hasNext(),
+            doctorPage.hasPrevious(),
+            doctorPage.isFirst(),
+            doctorPage.isLast()
+        );
     }
 }

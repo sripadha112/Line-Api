@@ -1,6 +1,8 @@
 package com.app.auth.repository;
 
 import com.app.auth.entity.DoctorDetails;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +22,10 @@ public interface DoctorRepository extends JpaRepository<DoctorDetails, Long> {
     // Method to get all doctors for debugging
     @Query("SELECT d FROM DoctorDetails d")
     List<DoctorDetails> findAllDoctors();
+    
+    // Paginated method to get all doctors
+    @Query("SELECT d FROM DoctorDetails d ORDER BY d.fullName ASC")
+    Page<DoctorDetails> findAllDoctorsPaginated(Pageable pageable);
     
     // Enhanced search methods - name search
     @Query("SELECT d FROM DoctorDetails d WHERE " +
