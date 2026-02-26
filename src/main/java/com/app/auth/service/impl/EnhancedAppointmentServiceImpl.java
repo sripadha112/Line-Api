@@ -3,6 +3,7 @@ package com.app.auth.service.impl;
 import com.app.auth.dto.*;
 import com.app.auth.entity.*;
 import com.app.auth.repository.*;
+import com.app.auth.service.BlockedSlotService;
 import com.app.auth.service.EnhancedAppointmentService;
 import com.app.auth.service.NotificationService;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     private final DoctorWorkplaceRepository workplaceRepository;
     private final UserDetailsRepository userRepository;
     private final NotificationService notificationService;
+    private final BlockedSlotService blockedSlotService;
 
     public EnhancedAppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
@@ -35,7 +37,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             DoctorDetailsRepository doctorRepository,
             DoctorWorkplaceRepository workplaceRepository,
             UserDetailsRepository userRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            BlockedSlotService blockedSlotService) {
         this.appointmentRepository = appointmentRepository;
     // this.futureAppointmentRepository = futureAppointmentRepository;
         this.pastAppointmentRepository = pastAppointmentRepository;
@@ -43,6 +46,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         this.workplaceRepository = workplaceRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.blockedSlotService = blockedSlotService;
     }
 
     @Override
@@ -93,6 +97,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         DoctorDetails doctor = doctorOpt.get();
         DoctorWorkplace workplace = workplaceOpt.get();
         
+        AvailableSlotsResponseDto response;
+        
         if (date != null && !date.trim().isEmpty()) {
             // Generate slots for specific date
             try {
@@ -102,12 +108,20 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 List<String> availableSlots = generateAvailableSlots(doctor, workplace, dateStr);
                 // Always include the date in response, even if no slots available
                 slotsByDate.put(dateStr, availableSlots);
+                
+                response = new AvailableSlotsResponseDto(slotsByDate, doctorId, workplaceId, workplace.getWorkplaceName(), doctor.getFullName());
+                
+                // Check for blocked slots and add to response
+                addBlockedSlotsInfo(response, doctorId, workplaceId, targetDate, targetDate);
+                
             } catch (Exception e) {
                 throw new IllegalArgumentException("Invalid date format. Please use yyyy-MM-dd format");
             }
         } else {
             // Generate slots for current day + next 2 days (3 days total) - existing behavior
             LocalDate currentDate = LocalDate.now();
+            LocalDate endDate = currentDate.plusDays(2);
+            
             for (int i = 0; i < 3; i++) {
                 LocalDate targetDate = currentDate.plusDays(i);
                 String dateStr = targetDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
@@ -116,9 +130,96 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 // Always include the date in response, even if no slots available
                 slotsByDate.put(dateStr, availableSlots);
             }
+            
+            response = new AvailableSlotsResponseDto(slotsByDate, doctorId, workplaceId, workplace.getWorkplaceName(), doctor.getFullName());
+            
+            // Check for blocked slots and add to response
+            addBlockedSlotsInfo(response, doctorId, workplaceId, currentDate, endDate);
         }
         
-        return new AvailableSlotsResponseDto(slotsByDate, doctorId, workplaceId, workplace.getWorkplaceName(), doctor.getFullName());
+        return response;
+    }
+    
+    /**
+     * Add blocked slots information to response and filter out blocked time slots
+     */
+    private void addBlockedSlotsInfo(AvailableSlotsResponseDto response, Long doctorId, Long workplaceId, 
+                                     LocalDate fromDate, LocalDate toDate) {
+        // Get all blocked slots for the date range
+        List<BlockedSlotDto> blockedSlots = blockedSlotService.getBlockedSlotsForDateRange(
+            doctorId, workplaceId, fromDate, toDate);
+        
+        for (BlockedSlotDto blocked : blockedSlots) {
+            String dateStr = blocked.getBlockDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            
+            if (blocked.getIsFullDay()) {
+                // Full day is blocked - clear all slots for this date and add blocked info
+                response.getSlotsByDate().put(dateStr, new ArrayList<>()); // Empty slots
+                response.addBlockedDate(dateStr, new AvailableSlotsResponseDto.BlockedDateInfo(
+                    true,
+                    true,
+                    blocked.getReason() != null ? blocked.getReason() : "Doctor unavailable for this day",
+                    null,
+                    null
+                ));
+            } else {
+                // Partial block - filter out slots that fall within blocked time
+                List<String> slots = response.getSlotsByDate().get(dateStr);
+                if (slots != null && blocked.getStartTime() != null && blocked.getEndTime() != null) {
+                    List<String> filteredSlots = filterBlockedTimeSlots(slots, blocked.getStartTime(), blocked.getEndTime());
+                    response.getSlotsByDate().put(dateStr, filteredSlots);
+                    
+                    // Add partial block info
+                    response.addBlockedDate(dateStr, new AvailableSlotsResponseDto.BlockedDateInfo(
+                        true,
+                        false,
+                        blocked.getReason() != null ? blocked.getReason() : "Doctor unavailable during this time",
+                        blocked.getStartTime().format(DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH)),
+                        blocked.getEndTime().format(DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH))
+                    ));
+                }
+            }
+        }
+    }
+    
+    /**
+     * Filter out slots that fall within a blocked time range
+     */
+    private List<String> filterBlockedTimeSlots(List<String> slots, LocalTime blockStart, LocalTime blockEnd) {
+        List<String> filtered = new ArrayList<>();
+        
+        for (String slot : slots) {
+            try {
+                // Parse slot time (e.g., "9:00AM - 9:30AM")
+                String[] parts = slot.split(" - ");
+                if (parts.length == 2) {
+                    LocalTime slotStart = parseTime(parts[0].trim());
+                    LocalTime slotEnd = parseTime(parts[1].trim());
+                    
+                    // Check if slot overlaps with blocked time
+                    boolean overlaps = !(slotEnd.isBefore(blockStart) || slotEnd.equals(blockStart) ||
+                                        slotStart.isAfter(blockEnd) || slotStart.equals(blockEnd));
+                    
+                    if (!overlaps) {
+                        filtered.add(slot);
+                    }
+                } else {
+                    filtered.add(slot); // Keep slot if format is unexpected
+                }
+            } catch (Exception e) {
+                filtered.add(slot); // Keep slot if parsing fails
+            }
+        }
+        
+        return filtered;
+    }
+    
+    /**
+     * Parse time string like "9:00AM" or "2:30PM" to LocalTime
+     */
+    private LocalTime parseTime(String timeStr) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH);
+        return LocalTime.parse(timeStr.toUpperCase(), formatter);
     }
 
     private List<String> generateAvailableSlots(DoctorDetails doctor, DoctorWorkplace workplace, String date) {
