@@ -46,6 +46,9 @@ public class DoctorDetails {
     @Column(name = "country", length = 100)
     private String country;
 
+    @Column(name = "verified", nullable = false)
+    private boolean verified = false;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -87,6 +90,9 @@ public class DoctorDetails {
 
     public String getCountry() { return country; }
     public void setCountry(String country) { this.country = country; }
+
+    public boolean isVerified() { return verified; }
+    public void setVerified(boolean verified) { this.verified = verified; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

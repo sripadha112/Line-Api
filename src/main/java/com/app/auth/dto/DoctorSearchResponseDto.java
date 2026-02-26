@@ -5,6 +5,7 @@ import java.util.List;
 public class DoctorSearchResponseDto {
     private Long doctorId;
     private String doctorName;
+    private Boolean verified;
     private String specialization;
     private String designation;
     private String profileImage;
@@ -40,6 +41,9 @@ public class DoctorSearchResponseDto {
     public Integer getExperience() { return experience; }
     public void setExperience(Integer experience) { this.experience = experience; }
     
+    public Boolean getVerified() { return verified; }
+    public void setVerified(Boolean verified) { this.verified = verified; }
+
     public List<WorkplaceDto> getWorkplaces() { return workplaces; }
     public void setWorkplaces(List<WorkplaceDto> workplaces) { this.workplaces = workplaces; }
     

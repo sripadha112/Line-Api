@@ -150,8 +150,8 @@ public class DoctorServiceImpl implements DoctorService {
         dto.setDoctorId(doctor.getId());
         dto.setDoctorName(doctor.getFullName());
         dto.setSpecialization(doctor.getSpecialization());
-        dto.setDesignation(doctor.getDesignation());
-        // profileImage and experience fields are not available in current entity
+        dto.setDesignation(doctor.getDesignation()); 
+        dto.setVerified(doctor.isVerified());
         dto.setProfileImage(null);
         dto.setExperience(null);
         return dto;
