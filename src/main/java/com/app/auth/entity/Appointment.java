@@ -54,6 +54,12 @@ public class Appointment {
     @Column(name = "notes")
     private String notes;
 
+        @Column(name = "patient_member_id")
+        private Long patientMemberId; // References family_members.id when booking for a family member
+
+        @Column(name = "patient_name", length = 150)
+        private String patientName; // Name of the person the appointment is for (you or family member)
+
     @Column(name = "doctor_name", length = 100)
     private String doctorName;
 
@@ -109,6 +115,12 @@ public class Appointment {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+        public Long getPatientMemberId() { return patientMemberId; }
+        public void setPatientMemberId(Long patientMemberId) { this.patientMemberId = patientMemberId; }
+
+        public String getPatientName() { return patientName; }
+        public void setPatientName(String patientName) { this.patientName = patientName; }
 
     public String getDoctorName() { return doctorName; }
     public void setDoctorName(String doctorName) { this.doctorName = doctorName; }

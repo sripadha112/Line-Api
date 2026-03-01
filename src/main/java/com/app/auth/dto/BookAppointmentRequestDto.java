@@ -25,6 +25,9 @@ public class BookAppointmentRequestDto {
     private String notes;
     
     private String status = "BOOKED";
+    
+    // Optional: book on behalf of a family member (family_member.id)
+    private Long familyMemberId;
 
     // Constructors
     public BookAppointmentRequestDto() {}
@@ -84,5 +87,13 @@ public class BookAppointmentRequestDto {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public Long getFamilyMemberId() {
+        return familyMemberId;
+    }
+
+    public void setFamilyMemberId(Long familyMemberId) {
+        this.familyMemberId = familyMemberId;
     }
 }

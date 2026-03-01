@@ -20,6 +20,8 @@ public class UserAppointmentDto {
     private String notes;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+    private Long patientMemberId;
+    private String patientName;
 
     // Constructors
     public UserAppointmentDto() {}
@@ -75,4 +77,10 @@ public class UserAppointmentDto {
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Long getPatientMemberId() { return patientMemberId; }
+    public void setPatientMemberId(Long patientMemberId) { this.patientMemberId = patientMemberId; }
+
+    public String getPatientName() { return patientName; }
+    public void setPatientName(String patientName) { this.patientName = patientName; }
 }

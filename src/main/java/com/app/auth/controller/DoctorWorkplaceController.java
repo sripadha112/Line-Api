@@ -219,6 +219,9 @@ public class DoctorWorkplaceController {
         dto.setStatus(appointment.getStatus());
         dto.setTimeSlot(appointment.getSlot());
         
+        // Set patient_member_id for family appointments
+        dto.setPatientMemberId(appointment.getPatientMemberId());
+        
         // Fetch user medical details
         Optional<UserDetails> userDetails = userDetailsRepository.findById(appointment.getUserId());
         if (userDetails.isPresent()) {

@@ -13,6 +13,9 @@ public class WorkspaceAppointmentDto {
     private String status;
     private Integer queuePosition;
     
+    // Family member field - if present, this is a family appointment
+    private Long patientMemberId;
+    
     // Medical details from user_details table
     private Integer age;
     private Double weightKg;
@@ -69,4 +72,7 @@ public class WorkspaceAppointmentDto {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public Long getPatientMemberId() { return patientMemberId; }
+    public void setPatientMemberId(Long patientMemberId) { this.patientMemberId = patientMemberId; }
 }

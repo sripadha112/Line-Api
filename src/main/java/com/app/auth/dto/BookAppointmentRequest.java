@@ -18,6 +18,7 @@ public class BookAppointmentRequest {
     private String slot; // e.g., "02:30PM - 02:50PM"
 
     private String notes;
+    private Long familyMemberId;
 
     // Getters and Setters
     public Long getDoctorId() { return doctorId; }
@@ -34,4 +35,7 @@ public class BookAppointmentRequest {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public Long getFamilyMemberId() { return familyMemberId; }
+    public void setFamilyMemberId(Long familyMemberId) { this.familyMemberId = familyMemberId; }
 }

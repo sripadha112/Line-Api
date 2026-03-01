@@ -27,6 +27,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     private final DoctorDetailsRepository doctorRepository;
     private final DoctorWorkplaceRepository workplaceRepository;
     private final UserDetailsRepository userRepository;
+    private final com.app.auth.repository.FamilyMemberRepository familyMemberRepository;
     private final NotificationService notificationService;
     private final BlockedSlotService blockedSlotService;
 
@@ -37,6 +38,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             DoctorDetailsRepository doctorRepository,
             DoctorWorkplaceRepository workplaceRepository,
             UserDetailsRepository userRepository,
+            com.app.auth.repository.FamilyMemberRepository familyMemberRepository,
             NotificationService notificationService,
             BlockedSlotService blockedSlotService) {
         this.appointmentRepository = appointmentRepository;
@@ -45,6 +47,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         this.doctorRepository = doctorRepository;
         this.workplaceRepository = workplaceRepository;
         this.userRepository = userRepository;
+        this.familyMemberRepository = familyMemberRepository;
         this.notificationService = notificationService;
         this.blockedSlotService = blockedSlotService;
     }
@@ -329,6 +332,20 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     private UserAppointmentDto bookCurrentAppointment(BookAppointmentRequestDto request, DoctorDetails doctor, DoctorWorkplace workplace) {
         Appointment appointment = new Appointment();
         appointment.setUserId(request.getUserId());
+        // If booking for a family member, record the member id and name
+        appointment.setPatientMemberId(request.getFamilyMemberId());
+        if (request.getFamilyMemberId() != null) {
+            try {
+                com.app.auth.entity.FamilyMember fm = familyMemberRepository.findById(request.getFamilyMemberId()).orElse(null);
+                if (fm != null) appointment.setPatientName(fm.getName());
+            } catch (Exception ignored) {}
+        } else {
+            // default to owner's name
+            try {
+                com.app.auth.entity.UserDetails user = userRepository.findById(request.getUserId()).orElse(null);
+                if (user != null) appointment.setPatientName(user.getFullName());
+            } catch (Exception ignored) {}
+        }
         appointment.setDoctorId(request.getDoctorId());
         appointment.setWorkplaceId(request.getWorkplaceId());
         appointment.setWorkplaceName(workplace.getWorkplaceName());
@@ -361,6 +378,19 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         // Save future appointment directly into appointments table (no separate future table)
         Appointment appointment = new Appointment();
         appointment.setUserId(request.getUserId());
+        // If booking for a family member, record the member id and name
+        appointment.setPatientMemberId(request.getFamilyMemberId());
+        if (request.getFamilyMemberId() != null) {
+            try {
+                com.app.auth.entity.FamilyMember fm = familyMemberRepository.findById(request.getFamilyMemberId()).orElse(null);
+                if (fm != null) appointment.setPatientName(fm.getName());
+            } catch (Exception ignored) {}
+        } else {
+            try {
+                com.app.auth.entity.UserDetails user = userRepository.findById(request.getUserId()).orElse(null);
+                if (user != null) appointment.setPatientName(user.getFullName());
+            } catch (Exception ignored) {}
+        }
         appointment.setDoctorId(request.getDoctorId());
         appointment.setWorkplaceId(request.getWorkplaceId());
         appointment.setWorkplaceName(workplace.getWorkplaceName());
@@ -617,6 +647,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         dto.setNotes(appointment.getNotes());
         dto.setCreatedAt(appointment.getCreatedAt());
         dto.setUpdatedAt(appointment.getUpdatedAt());
+        dto.setPatientMemberId(appointment.getPatientMemberId());
+        dto.setPatientName(appointment.getPatientName());
         
         return dto;
     }
@@ -789,6 +821,10 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             newAppointment.setUserId(originalAppointment.getUserId());
             newAppointment.setDoctorId(originalAppointment.getDoctorId());
             
+            // Preserve family member ID and name if this is a family appointment
+            newAppointment.setPatientMemberId(originalAppointment.getPatientMemberId());
+            newAppointment.setPatientName(originalAppointment.getPatientName());
+            
             // Set workplace details
             if (request.getNewWorkplaceId() != null) {
                 Optional<DoctorWorkplace> workplaceOpt = workplaceRepository.findById(request.getNewWorkplaceId());
@@ -824,6 +860,10 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             Appointment futureAppt = new Appointment();
             futureAppt.setUserId(originalAppointment.getUserId());
             futureAppt.setDoctorId(originalAppointment.getDoctorId());
+            
+            // Preserve family member ID and name if this is a family appointment
+            futureAppt.setPatientMemberId(originalAppointment.getPatientMemberId());
+            futureAppt.setPatientName(originalAppointment.getPatientName());
 
             // Set workplace details
             Long workplaceIdToUse = originalAppointment.getWorkplaceId();
@@ -876,6 +916,10 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         newAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
         newAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
         
+        // Preserve family member ID and name if this is a family appointment
+        newAppointment.setPatientMemberId(originalAppointment.getPatientMemberId());
+        newAppointment.setPatientName(originalAppointment.getPatientName());
+        
         newAppointment.setAppointmentDate(request.getNewAppointmentDate());
         newAppointment.setSlot(request.getNewTimeSlot());
         newAppointment.setAppointmentTime(parseSlotToDateTime(request.getNewTimeSlot(), request.getNewAppointmentDate()));
@@ -899,6 +943,10 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         newAppointment.setWorkplaceName(originalAppointment.getWorkplaceName());
         newAppointment.setWorkplaceType(originalAppointment.getWorkplaceType());
         newAppointment.setWorkplaceAddress(originalAppointment.getWorkplaceAddress());
+        
+        // Preserve family member ID and name if this is a family appointment
+        newAppointment.setPatientMemberId(originalAppointment.getPatientMemberId());
+        newAppointment.setPatientName(originalAppointment.getPatientName());
         
         newAppointment.setAppointmentDate(request.getNewAppointmentDate());
         newAppointment.setSlot(request.getNewTimeSlot());

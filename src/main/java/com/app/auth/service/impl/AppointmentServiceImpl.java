@@ -26,6 +26,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final DoctorDetailsRepository doctorRepo;
     private final DoctorWorkplaceRepository workplaceRepo;
     private final UserDetailsRepository userRepo;
+    private final com.app.auth.repository.FamilyMemberRepository familyMemberRepo;
     private final NotificationService notificationService;
 
     // keep future repo bean for compatibility but avoid using it at runtime
@@ -36,12 +37,14 @@ public class AppointmentServiceImpl implements AppointmentService {
                                   DoctorDetailsRepository doctorRepo,
                                   DoctorWorkplaceRepository workplaceRepo,
                                   UserDetailsRepository userRepo,
+                                  com.app.auth.repository.FamilyMemberRepository familyMemberRepo,
                                   NotificationService notificationService) {
         this.appointmentRepo = appointmentRepo;
         // this.futureAppointmentRepo = futureAppointmentRepo;
         this.doctorRepo = doctorRepo;
         this.workplaceRepo = workplaceRepo;
         this.userRepo = userRepo;
+        this.familyMemberRepo = familyMemberRepo;
         this.notificationService = notificationService;
     }
 
@@ -407,6 +410,16 @@ public class AppointmentServiceImpl implements AppointmentService {
             appointment.setQueuePosition(getNextQueuePosition(req.getDoctorId(), req.getWorkplaceId(), appointmentDateStr));
             appointment.setCreatedAt(OffsetDateTime.now());
             appointment.setUpdatedAt(OffsetDateTime.now());
+            // family member info
+            appointment.setPatientMemberId(req.getFamilyMemberId());
+            if (req.getFamilyMemberId() != null) {
+                try {
+                    com.app.auth.entity.FamilyMember fm = familyMemberRepo.findById(req.getFamilyMemberId()).orElse(null);
+                    if (fm != null) appointment.setPatientName(fm.getName());
+                } catch (Exception ignored) {}
+            } else {
+                try { com.app.auth.entity.UserDetails u = userRepo.findById(userId).orElse(null); if (u != null) appointment.setPatientName(u.getFullName()); } catch (Exception ignored) {}
+            }
 
             appointmentRepo.save(appointment);
             
@@ -429,6 +442,15 @@ public class AppointmentServiceImpl implements AppointmentService {
             futureAppt.setNotes(req.getNotes());
             futureAppt.setQueuePosition(getNextQueuePositionFuture(req.getDoctorId(), req.getWorkplaceId(), appointmentDateStr));
             futureAppt.setCreatedAt(OffsetDateTime.now());
+            futureAppt.setPatientMemberId(req.getFamilyMemberId());
+            if (req.getFamilyMemberId() != null) {
+                try {
+                    com.app.auth.entity.FamilyMember fm = familyMemberRepo.findById(req.getFamilyMemberId()).orElse(null);
+                    if (fm != null) futureAppt.setPatientName(fm.getName());
+                } catch (Exception ignored) {}
+            } else {
+                try { com.app.auth.entity.UserDetails u = userRepo.findById(userId).orElse(null); if (u != null) futureAppt.setPatientName(u.getFullName()); } catch (Exception ignored) {}
+            }
 
             appointmentRepo.save(futureAppt);
         }
