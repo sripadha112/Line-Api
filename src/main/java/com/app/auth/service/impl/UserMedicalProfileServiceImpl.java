@@ -98,8 +98,8 @@ public class UserMedicalProfileServiceImpl implements UserMedicalProfileService 
         dto.setEmergencyContactNumber(user.getEmergencyContactNumber());
         dto.setEmergencyContactRelation(user.getEmergencyContactRelation());
 
-        dto.setMedicalNotes(user.getMedicalNotes());
-        dto.setPrescription(user.getPrescription());
+//        dto.setMedicalNotes(user.getMedicalNotes());
+//        dto.setPrescription(user.getPrescription());
         dto.setFamilyMedicalHistory(user.getFamilyMedicalHistory());
 
         return dto;
@@ -147,26 +147,26 @@ public class UserMedicalProfileServiceImpl implements UserMedicalProfileService 
         // Handle medical notes and prescription logic
         if (dto.getMedicalNotes() != null) {
             // Set the new medical notes in the medical_notes field
-            user.setMedicalNotes(dto.getMedicalNotes());
+//            user.setMedicalNotes(dto.getMedicalNotes());
             
             // Also append the new medical notes to prescription field for history
             String newNotes = dto.getMedicalNotes();
-            String existingPrescription = user.getPrescription();
+//            String existingPrescription = user.getPrescription();
             String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
             
             String updatedPrescription;
-            if (existingPrescription != null && !existingPrescription.trim().isEmpty()) {
-                // Append new notes to existing prescription
-                updatedPrescription = existingPrescription + "\n\n--- Medical Notes [" + timestamp + "] ---\n" + newNotes;
-            } else {
-                // First time adding to prescription
-                updatedPrescription = "--- Medical Notes [" + timestamp + "] ---\n" + newNotes;
-            }
+//            if (existingPrescription != null && !existingPrescription.trim().isEmpty()) {
+//                // Append new notes to existing prescription
+//                updatedPrescription = existingPrescription + "\n\n--- Medical Notes [" + timestamp + "] ---\n" + newNotes;
+//            } else {
+//                // First time adding to prescription
+//                updatedPrescription = "--- Medical Notes [" + timestamp + "] ---\n" + newNotes;
+//            }
             
-            user.setPrescription(updatedPrescription);
+//            user.setPrescription(updatedPrescription);
         } else if (dto.getPrescription() != null) {
             // Handle prescription field updates only if medical notes are not being updated
-            user.setPrescription(dto.getPrescription());
+//            user.setPrescription(dto.getPrescription());
         }
         
         if (dto.getFamilyMedicalHistory() != null) user.setFamilyMedicalHistory(dto.getFamilyMedicalHistory());

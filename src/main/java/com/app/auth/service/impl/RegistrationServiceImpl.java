@@ -68,6 +68,9 @@ public class RegistrationServiceImpl implements RegistrationService {
                 userDetails.setEmail(null);  // Explicitly set to null if empty
             }
             
+            // Set gender field
+            userDetails.setGender(userRegistrationDto.getGender());
+            
             // Set other fields, converting empty strings to null
             userDetails.setAddress(isNotEmpty(userRegistrationDto.getAddress()) ? userRegistrationDto.getAddress() : null);
             userDetails.setCity(isNotEmpty(userRegistrationDto.getCity()) ? userRegistrationDto.getCity() : null);

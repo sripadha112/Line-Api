@@ -20,6 +20,9 @@ public class UserRegistrationDto {
     @Size(max = 100, message = "Email must not exceed 100 characters")
     private String email;
 
+    @Size(max = 20, message = "Gender must not exceed 20 characters")
+    private String gender;
+
     private String address;
 
     @Size(max = 100, message = "City must not exceed 100 characters")
@@ -37,10 +40,11 @@ public class UserRegistrationDto {
     // Constructors
     public UserRegistrationDto() {}
 
-    public UserRegistrationDto(String mobileNumber, String fullName, String email, String address, String city, String state, String pincode, String country) {
+    public UserRegistrationDto(String mobileNumber, String fullName, String email, String gender, String address, String city, String state, String pincode, String country) {
         this.mobileNumber = mobileNumber;
         this.fullName = fullName;
         this.email = email;
+        this.gender = gender;
         this.address = address;
         this.city = city;
         this.state = state;
@@ -71,6 +75,14 @@ public class UserRegistrationDto {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
     }
 
     public String getAddress() {

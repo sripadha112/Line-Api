@@ -18,8 +18,11 @@ public class UserDetails {
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
-    @Column(name = "email", nullable = false, length = 100)
+    @Column(name = "email", nullable = true, length = 100)
     private String email;
+
+    @Column(name = "gender", length = 20)
+    private String gender;
 
     @Column(name = "mobile_number", nullable = false, length = 15)
     private String mobileNumber;
@@ -130,12 +133,6 @@ public class UserDetails {
     private String emergencyContactRelation;
 
     // Additional Notes
-    @Column(name = "medical_notes", columnDefinition = "TEXT")
-    private String medicalNotes;
-
-    @Column(name = "prescription", columnDefinition = "TEXT")
-    private String prescription;
-
     @Column(name = "family_medical_history", columnDefinition = "TEXT")
     private String familyMedicalHistory;
 
@@ -149,6 +146,9 @@ public class UserDetails {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
 
     public String getMobileNumber() { return mobileNumber; }
     public void setMobileNumber(String mobileNumber) { this.mobileNumber = mobileNumber; }
@@ -240,12 +240,6 @@ public class UserDetails {
 
     public String getEmergencyContactRelation() { return emergencyContactRelation; }
     public void setEmergencyContactRelation(String emergencyContactRelation) { this.emergencyContactRelation = emergencyContactRelation; }
-
-    public String getMedicalNotes() { return medicalNotes; }
-    public void setMedicalNotes(String medicalNotes) { this.medicalNotes = medicalNotes; }
-
-    public String getPrescription() { return prescription; }
-    public void setPrescription(String prescription) { this.prescription = prescription; }
 
     public String getFamilyMedicalHistory() { return familyMedicalHistory; }
     public void setFamilyMedicalHistory(String familyMedicalHistory) { this.familyMedicalHistory = familyMedicalHistory; }
