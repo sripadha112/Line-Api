@@ -8,9 +8,16 @@ import jakarta.servlet.http.HttpServletResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
@@ -33,9 +40,38 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final TokenBlacklistService tokenBlacklistService;
 
+    @Value("${swagger.auth.username:swagger-admin}")
+    private String swaggerUsername;
+
+    @Value("${swagger.auth.password:SwaggerSecure@2026}")
+    private String swaggerPassword;
+
     public SecurityConfig(JwtUtil jwtUtil, TokenBlacklistService tokenBlacklistService) {
         this.jwtUtil = jwtUtil;
         this.tokenBlacklistService = tokenBlacklistService;
+    }
+
+    /**
+     * Password encoder bean
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * Custom UserDetailsService for Swagger authentication
+     * This replaces the default Spring Security user
+     */
+    @Bean
+    public UserDetailsService userDetailsService() {
+        UserDetails swaggerUser = User.builder()
+                .username(swaggerUsername)
+                .password(passwordEncoder().encode(swaggerPassword))
+                .roles("SWAGGER_USER")
+                .build();
+
+        return new InMemoryUserDetailsManager(swaggerUser);
     }
 
     @Bean

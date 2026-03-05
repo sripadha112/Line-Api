@@ -3,15 +3,22 @@ package com.app.auth.controller;
 import com.app.auth.service.AppointmentSchedulerService;
 import com.app.auth.service.EnhancedAppointmentService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/scheduler")
 public class SchedulerAdminController {
+
+    private static final Logger logger = LoggerFactory.getLogger(SchedulerAdminController.class);
+    private static int keepAliveCounter = 0;
 
     private final AppointmentSchedulerService schedulerService;
     private final EnhancedAppointmentService enhancedAppointmentService;
@@ -105,5 +112,31 @@ public class SchedulerAdminController {
                 "message", "Failed to get scheduler status: " + e.getMessage()
             ));
         }
+    }
+
+    /**
+     * Keep-alive scheduler that runs every 30 seconds to prevent Render free tier from sleeping
+     * This method logs activity to keep the app warm
+     */
+    @Scheduled(fixedRate = 30000) // Run every 30 seconds (30000 milliseconds)
+    public void keepAlive() {
+        keepAliveCounter++;
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        logger.info("Keep-alive ping #{} at {}", keepAliveCounter, timestamp);
+    }
+
+    /**
+     * Get keep-alive status
+     */
+    @GetMapping("/keep-alive/status")
+    public ResponseEntity<Map<String, Object>> getKeepAliveStatus() {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return ResponseEntity.ok(Map.of(
+            "status", "ACTIVE",
+            "message", "Keep-alive scheduler is running every 30 seconds",
+            "pingCount", keepAliveCounter,
+            "currentTime", timestamp,
+            "intervalSeconds", 30
+        ));
     }
 }

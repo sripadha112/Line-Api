@@ -2,13 +2,16 @@ package com.app.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.time.LocalTime;
@@ -18,9 +21,12 @@ import java.util.List;
 public class WebConfig implements WebMvcConfigurer {
     
     private final DateConverter dateConverter;
+    private final HandlerInterceptor apiLoggingInterceptor;
     
-    public WebConfig(DateConverter dateConverter) {
+    public WebConfig(DateConverter dateConverter, 
+                     @Qualifier("apiLoggingInterceptor") HandlerInterceptor apiLoggingInterceptor) {
         this.dateConverter = dateConverter;
+        this.apiLoggingInterceptor = apiLoggingInterceptor;
     }
     
     @Override
@@ -54,5 +60,25 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedHeaders("*")
                 .allowCredentials(false)
                 .maxAge(3600);
+    }
+
+    /**
+     * Register API Logging Interceptor
+     * Configured to target specific endpoints for performance optimization
+     */
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(apiLoggingInterceptor)
+                // Include all API paths
+                .addPathPatterns("/api/**")
+                // Exclude static resources and health checks to reduce overhead
+                .excludePathPatterns(
+                    "/api/health",
+                    "/api/actuator/**",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**",
+                    "/swagger-resources/**",
+                    "/webjars/**"
+                );
     }
 }
