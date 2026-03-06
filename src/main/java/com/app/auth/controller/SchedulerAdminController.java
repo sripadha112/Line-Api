@@ -118,7 +118,8 @@ public class SchedulerAdminController {
      * Keep-alive scheduler that runs every 30 seconds to prevent Render free tier from sleeping
      * This method logs activity to keep the app warm
      */
-    @Scheduled(fixedRate = 30000) // Run every 30 seconds (30000 milliseconds)
+    @Scheduled(fixedRate = 30000)// Run every 30 seconds (30000 milliseconds)
+    @GetMapping("/live-api")
     public void keepAlive() {
         keepAliveCounter++;
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
