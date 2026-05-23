@@ -1,0 +1,65 @@
+[Unit]
+Description=Line Healthcare Application - High Performance
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/NeextApp-api
+
+# Optimized JVM settings for EC2 t2.micro/t3.micro with better performance
+ExecStart=/usr/bin/java \
+    -Xms384m \
+    -Xmx768m \
+    -XX:+UseG1GC \
+    -XX:MaxGCPauseMillis=100 \
+    -XX:+ParallelRefProcEnabled \
+    -XX:+UseStringDeduplication \
+    -XX:+OptimizeStringConcat \
+    -XX:+UseCompressedOops \
+    -XX:ReservedCodeCacheSize=128m \
+    -XX:MaxMetaspaceSize=192m \
+    -Djava.security.egd=file:/dev/./urandom \
+    -Djava.net.preferIPv4Stack=true \
+    -Dfile.encoding=UTF-8 \
+    -Dserver.tomcat.threads.max=50 \
+    -jar /home/ec2-user/NeextApp-api/auth-service-0.0.1-SNAPSHOT.jar \
+    --spring.profiles.active=prod \
+    --spring.config.location=file:/home/ec2-user/NeextApp-api/application-prod.properties
+
+# Performance and reliability
+Restart=always
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lineapp
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+
+# Timeout settings
+TimeoutStartSec=90
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lineapp
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/lineapp /opt/lineapp/logs
+
+# Resource limits (optional, for EC2 free tier)
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

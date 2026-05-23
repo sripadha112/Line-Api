@@ -60,14 +60,30 @@ public class DoctorWorkplaceController {
     }
 
 
-    //using this
+    /**
+     * Get all workplaces for a doctor (PRIMARY API for doctor details)
+     * OPTIMIZED: Returns workplaces with HTTP caching headers for better performance
+     * Cache for 5 minutes to reduce server load
+     */
     @GetMapping("/{doctorId}/workplaces")
     public ResponseEntity<List<DoctorWorkplaceDto>> getDoctorWorkplaces(@PathVariable("doctorId") Long doctorId) {
         List<DoctorWorkplace> workplaces = workplaceRepository.findByDoctorId(doctorId);
+        
+        // Early return if no workplaces found
+        if (workplaces.isEmpty()) {
+            return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                .body(new ArrayList<>());
+        }
+        
         List<DoctorWorkplaceDto> workplaceDtos = workplaces.stream()
                 .map(workplace -> convertToDto(workplace, doctorId))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(workplaceDtos);
+        
+        // Add caching headers for better frontend performance
+        return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                .body(workplaceDtos);
     }
 
     /**

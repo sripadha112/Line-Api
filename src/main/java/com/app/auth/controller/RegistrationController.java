@@ -59,12 +59,22 @@ public class RegistrationController {
         }
     }
 
+    /**
+     * Get doctor by ID (SECONDARY PRIORITY - Load after workplaces)
+     * OPTIMIZED: Cached for 5 minutes, with workplaces eagerly loaded
+     * Frontend: Load this AFTER main workplaces data for better UX
+     * 
+     * NOTE: Prefer /api/doctors/{doctorId}/workplaces for primary doctor data
+     */
     @GetMapping("/doctor/{doctorId}")
     public ResponseEntity<DoctorResponseDto> getDoctorById(@PathVariable("doctorId") Long doctorId) {
         DoctorResponseDto doctor = registrationService.getDoctorResponseById(doctorId);
         
         if (doctor != null) {
-            return ResponseEntity.ok(doctor);
+            // Add caching for better performance (secondary priority = 5min cache)
+            return ResponseEntity.ok()
+                    .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                    .body(doctor);
         } else {
             return ResponseEntity.notFound().build();
         }

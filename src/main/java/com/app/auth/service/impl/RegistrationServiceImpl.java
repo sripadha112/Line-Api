@@ -190,7 +190,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     public DoctorResponseDto getDoctorResponseById(Long doctorId) {
-        Optional<DoctorDetails> doctorOpt = doctorDetailsRepository.findById(doctorId);
+        // Use findByIdWithWorkplaces to eagerly fetch workplaces collection
+        Optional<DoctorDetails> doctorOpt = doctorDetailsRepository.findByIdWithWorkplaces(doctorId);
         if (doctorOpt.isEmpty()) {
             return null;
         }

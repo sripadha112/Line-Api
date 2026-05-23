@@ -146,13 +146,14 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public byte[] generatePrescriptionPdf(Integer prescriptionId) {
         Prescription prescription = prescriptionRepository.findById(prescriptionId)
                 .orElseThrow(() -> new IllegalArgumentException("Prescription not found"));
 
-        // Get user and doctor details
+        // Get user and doctor details with workplaces eagerly loaded
         UserDetails user = userDetailsRepository.findById(prescription.getUserId().longValue()).orElse(null);
-        DoctorDetails doctor = doctorDetailsRepository.findById(prescription.getDoctorId().longValue()).orElse(null);
+        DoctorDetails doctor = doctorDetailsRepository.findByIdWithWorkplaces(prescription.getDoctorId().longValue()).orElse(null);
 
         // Generate HTML for PDF with UTF-8 encoding
         String html = generatePrescriptionHtml(prescription, user, doctor);

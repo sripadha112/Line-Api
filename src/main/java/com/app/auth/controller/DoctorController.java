@@ -59,11 +59,19 @@ public class DoctorController {
 
     /**
      * Get doctor's appointment history grouped by workspace
-     * Returns all past appointments organized by workplace with patient details
+     * Returns past appointments organized by workplace with patient details
+     * Limited to last 100 appointments for performance
+     * TODO: Add pagination parameters if more history needed
      */
     @GetMapping("/{doctorId}/appointments/history")
-    public ResponseEntity<List<DoctorHistoryWorkspaceDto>> history(@PathVariable("doctorId") Long doctorId) {
-        List<DoctorHistoryWorkspaceDto> historyByWorkspace = getDoctorHistoryGroupedByWorkspace(doctorId);
+    public ResponseEntity<List<DoctorHistoryWorkspaceDto>> history(
+            @PathVariable("doctorId") Long doctorId,
+            @RequestParam(value = "limit", defaultValue = "100") int limit) {
+        // Validate limit to prevent excessive data retrieval
+        if (limit > 500) {
+            limit = 500;
+        }
+        List<DoctorHistoryWorkspaceDto> historyByWorkspace = getDoctorHistoryGroupedByWorkspace(doctorId, limit);
         return ResponseEntity.ok(historyByWorkspace);
     }
 
@@ -155,10 +163,27 @@ public class DoctorController {
     
     /**
      * Get doctor's appointment history grouped by workspace
+     * OPTIMIZED: Batch fetches user details to avoid N+1 queries
      */
-    private List<DoctorHistoryWorkspaceDto> getDoctorHistoryGroupedByWorkspace(Long doctorId) {
-        // Get all past appointments for the doctor
-        List<PastAppointment> pastAppointments = pastAppointmentRepository.findByDoctorIdOrderByAppointmentTimeDesc(doctorId);
+    private List<DoctorHistoryWorkspaceDto> getDoctorHistoryGroupedByWorkspace(Long doctorId, int limit) {
+        // Get limited past appointments for the doctor for better performance
+        List<PastAppointment> pastAppointments = pastAppointmentRepository.findTopNByDoctorIdOrderByAppointmentTimeDesc(doctorId, limit);
+        
+        // Early return if no appointments
+        if (pastAppointments.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // OPTIMIZATION: Collect all unique user IDs first
+        List<Long> userIds = pastAppointments.stream()
+                .map(PastAppointment::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        // OPTIMIZATION: Batch fetch all user details at once (prevents N+1 queries)
+        Map<Long, UserDetails> userDetailsMap = userDetailsRepository.findAllById(userIds)
+                .stream()
+                .collect(Collectors.toMap(UserDetails::getId, user -> user));
         
         // Group appointments by workspace
         Map<String, List<DoctorHistoryAppointmentDto>> appointmentsByWorkspace = new LinkedHashMap<>();
@@ -170,8 +195,8 @@ public class DoctorController {
             // Store workspace info for later use
             workspaceInfo.put(workspaceKey, appointment);
             
-            // Convert to DTO with patient details
-            DoctorHistoryAppointmentDto appointmentDto = convertToDoctorHistoryAppointmentDto(appointment);
+            // Convert to DTO with pre-fetched user details
+            DoctorHistoryAppointmentDto appointmentDto = convertToDoctorHistoryAppointmentDto(appointment, userDetailsMap);
             
             appointmentsByWorkspace
                 .computeIfAbsent(workspaceKey, k -> new ArrayList<>())
@@ -195,8 +220,11 @@ public class DoctorController {
     
     /**
      * Convert PastAppointment to DoctorHistoryAppointmentDto with patient details
+     * OPTIMIZED: Uses pre-fetched user details map to avoid N+1 queries
      */
-    private DoctorHistoryAppointmentDto convertToDoctorHistoryAppointmentDto(PastAppointment appointment) {
+    private DoctorHistoryAppointmentDto convertToDoctorHistoryAppointmentDto(
+            PastAppointment appointment, 
+            Map<Long, UserDetails> userDetailsMap) {
         DoctorHistoryAppointmentDto dto = new DoctorHistoryAppointmentDto();
         dto.setAppointmentId(appointment.getId());
         dto.setUserId(appointment.getUserId());
@@ -205,10 +233,9 @@ public class DoctorController {
         dto.setAppointmentTime(appointment.getAppointmentTime());
         dto.setStatus(appointment.getStatus());
         
-        // Fetch user details for patient information
-        Optional<UserDetails> userDetails = userDetailsRepository.findById(appointment.getUserId());
-        if (userDetails.isPresent()) {
-            UserDetails user = userDetails.get();
+        // Get user details from pre-fetched map (no additional database query)
+        UserDetails user = userDetailsMap.get(appointment.getUserId());
+        if (user != null) {
             dto.setPatientFullName(user.getFullName());
             dto.setAge(user.getAge());
             dto.setMobileNumber(user.getMobileNumber());

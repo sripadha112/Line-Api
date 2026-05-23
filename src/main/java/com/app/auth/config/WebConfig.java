@@ -55,8 +55,21 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                .allowedOriginPatterns(
+                    "https://neextapp.com",
+                    "https://api.neextapp.com",
+                    "http://api.neextapp.com",
+                    "http://neextapp.com",
+                    "https://www.neextapp.com",
+                    "http://www.neextapp.com",
+                    "http://localhost:3000",
+                    "http://localhost:19006",
+                    "http://98.88.83.120:*",
+                    "http://192.168.*.*:*",
+                    "exp://*",
+                    "*"
+                )
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD")
                 .allowedHeaders("*")
                 .allowCredentials(false)
                 .maxAge(3600);
