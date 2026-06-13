@@ -1,12 +1,8 @@
 package com.app.auth.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
-import java.time.LocalTime;
+import jakarta.validation.constraints.*;
+
 import java.util.List;
 
 public class DoctorRegistrationDto {
@@ -48,6 +44,13 @@ public class DoctorRegistrationDto {
     @NotEmpty(message = "At least one workspace is required")
     @Valid
     private List<WorkspaceDto> workspaces;
+
+    @NotBlank
+    @Pattern(regexp = "^[0-9]{4,6}$", message = "PIN must be 4-6 digits")
+    private String pin;
+
+    public String getPin() { return pin; }
+    public void setPin(String pin) { this.pin = pin; }
 
     // Constructors
     public DoctorRegistrationDto() {}

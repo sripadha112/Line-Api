@@ -79,7 +79,17 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/register/**", "/api/registration/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/user/**", "/api/doctor/**", "/api/doctors/**", "/api/notifications/**", "/api/test/**", "/api/medicines/**").permitAll()
+                .requestMatchers("/api/auth/**",
+                        "/api/register/**",
+                        "/api/registration/**",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/api/user/**",
+                        "/api/doctor/**",
+                        "/api/doctors/**",
+                        "/api/notifications/**",
+                        "/api/test/**",
+                        "/api/medicines/**").permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());
@@ -119,13 +129,17 @@ public class SecurityConfig {
             
             // Skip JWT validation for auth endpoints, registration endpoints, swagger docs, and other public endpoints
             String requestPath = request.getRequestURI();
-            if (requestPath.startsWith("/api/auth/") || 
-                requestPath.startsWith("/api/register/") ||
-                requestPath.startsWith("/api/registration/") ||
-                requestPath.startsWith("/swagger-ui/") || 
-                requestPath.startsWith("/v3/api-docs/") ||
-                requestPath.startsWith("/api/doctors/")) {
-                filterChain.doFilter(request, response);
+            if (
+                    requestPath.startsWith("/api/auth/check-mobile") ||
+                    requestPath.startsWith("/api/auth/register") ||
+                    requestPath.startsWith("/api/auth/login") ||
+                    requestPath.startsWith("/api/auth/") ||
+                    requestPath.startsWith("/api/register/") ||
+                    requestPath.startsWith("/api/registration/") ||
+                    requestPath.startsWith("/swagger-ui/") ||
+                    requestPath.startsWith("/v3/api-docs/") ||
+                    requestPath.startsWith("/api/doctors/")) {
+                    filterChain.doFilter(request, response);
                 return;
             }
             

@@ -52,6 +52,13 @@ public class UserRegistrationDto {
         this.country = country;
     }
 
+    @NotBlank
+    @Pattern(regexp = "^[0-9]{4,6}$", message = "PIN must be 4-6 digits")
+    private String pin;
+
+    public String getPin() { return pin; }
+    public void setPin(String pin) { this.pin = pin; }
+
     // Getters and Setters
     public String getMobileNumber() {
         return mobileNumber;

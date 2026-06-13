@@ -11,6 +11,12 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
+//    @Value("${jwt.secret}")
+//    private String secret;
+
+//    @Value("${jwt.expiration-ms:604800000}") // default 7 days
+//    private long expirationMs;
+
     private final Key key;
     private final long expirationMs;
 
@@ -33,5 +39,20 @@ public class JwtUtil {
 
     public Jws<Claims> parseToken(String token) throws JwtException {
         return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+    }
+
+//    private Key getSigningKey() {
+//        return Keys.hmacShaKeyFor(key);
+//    }
+
+    public String generateToken(String mobileNumber, Long userId, String role) {
+        return Jwts.builder()
+                .setSubject(mobileNumber)
+                .claim("userId", userId)
+                .claim("role", role)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
     }
 }

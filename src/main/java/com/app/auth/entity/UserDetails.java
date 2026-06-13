@@ -136,6 +136,15 @@ public class UserDetails {
     @Column(name = "family_medical_history", columnDefinition = "TEXT")
     private String familyMedicalHistory;
 
+    @Column(name = "pin_hash")
+    private String pinHash;
+
+    @Column(name = "role")
+    private String role;
+
+    @Column(name = "profile_completed")
+    private Boolean profileCompleted = false;
+
     // getters & setters
 
     public Long getId() { return id; }
@@ -259,6 +268,15 @@ public class UserDetails {
 
     public Boolean getNotificationsEnabled() { return notificationsEnabled; }
     public void setNotificationsEnabled(Boolean notificationsEnabled) { this.notificationsEnabled = notificationsEnabled; }
+
+    public String getPinHash() { return pinHash; }
+    public void setPinHash(String pinHash) { this.pinHash = pinHash; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+
+    public Boolean getProfileCompleted() { return profileCompleted; }
+    public void setProfileCompleted(Boolean profileCompleted) { this.profileCompleted = profileCompleted; }
 
     @PreUpdate
     public void preUpdate() {
