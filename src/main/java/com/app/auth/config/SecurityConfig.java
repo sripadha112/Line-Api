@@ -11,6 +11,7 @@ import io.jsonwebtoken.JwtException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -33,6 +34,9 @@ import java.util.Arrays;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Configuration
 public class SecurityConfig {
@@ -157,7 +161,17 @@ public class SecurityConfig {
                     
                     Jws<Claims> claims = jwtUtil.parseToken(token);
                     String sub = claims.getBody().getSubject();
-                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(sub, null, Collections.emptyList());
+                    String role = claims.getBody().get("role", String.class);
+                    Map<String, Object> authDetails = new HashMap<>();
+                    authDetails.put("userId", claims.getBody().get("userId"));
+                    authDetails.put("role", role);
+
+                    List<SimpleGrantedAuthority> authorities = role == null
+                            ? Collections.emptyList()
+                            : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+
+                    UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(sub, null, authorities);
+                    auth.setDetails(authDetails);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 } catch (JwtException e) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

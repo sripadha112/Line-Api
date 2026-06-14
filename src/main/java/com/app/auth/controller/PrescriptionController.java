@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.AuthAccess;
 import com.app.auth.dto.CreatePrescriptionRequest;
 import com.app.auth.dto.PrescriptionDto;
 import com.app.auth.service.PrescriptionService;
@@ -39,6 +40,8 @@ public class PrescriptionController {
     public ResponseEntity<PrescriptionDto> updatePrescription(
             @PathVariable Integer id,
             @Valid @RequestBody CreatePrescriptionRequest request) {
+        PrescriptionDto existing = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(existing.getUserId().longValue());
         PrescriptionDto prescription = prescriptionService.updatePrescription(id, request);
         return ResponseEntity.ok(prescription);
     }
@@ -50,6 +53,7 @@ public class PrescriptionController {
     @GetMapping("/{id}")
     public ResponseEntity<PrescriptionDto> getPrescriptionById(@PathVariable Integer id) {
         PrescriptionDto prescription = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(prescription.getUserId().longValue());
         return ResponseEntity.ok(prescription);
     }
 
@@ -59,6 +63,7 @@ public class PrescriptionController {
      */
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<PrescriptionDto>> getPrescriptionsByUserId(@PathVariable Integer userId) {
+        AuthAccess.requireSelfOrDoctor(userId.longValue());
         List<PrescriptionDto> prescriptions = prescriptionService.getPrescriptionsByUserId(userId);
         return ResponseEntity.ok(prescriptions);
     }
@@ -79,6 +84,8 @@ public class PrescriptionController {
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePrescription(@PathVariable Integer id) {
+        PrescriptionDto prescription = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(prescription.getUserId().longValue());
         prescriptionService.deletePrescription(id);
         return ResponseEntity.noContent().build();
     }
@@ -89,6 +96,8 @@ public class PrescriptionController {
      */
     @GetMapping("/{id}/pdf")
     public ResponseEntity<byte[]> generatePrescriptionPdf(@PathVariable Integer id) {
+        PrescriptionDto prescription = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(prescription.getUserId().longValue());
         byte[] pdfBytes = prescriptionService.generatePrescriptionPdf(id);
         
         HttpHeaders headers = new HttpHeaders();

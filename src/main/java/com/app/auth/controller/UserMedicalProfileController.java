@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.AuthAccess;
 import com.app.auth.dto.UserProfileDto;
 import com.app.auth.service.UserMedicalProfileService;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,7 @@ public class UserMedicalProfileController {
      */
     @GetMapping("/{userId}/profile")
     public ResponseEntity<UserProfileDto> getUserCompleteProfile(@PathVariable("userId") Long userId) {
+        AuthAccess.requireSelfOrDoctor(userId);
         UserProfileDto profile = medicalProfileService.getUserCompleteProfile(userId);
         
         if (profile != null) {
@@ -63,6 +65,7 @@ public class UserMedicalProfileController {
             @RequestBody UserProfileDto userProfileDto) {
         
         try {
+            AuthAccess.requireSelfOrDoctor(userId);
             UserProfileDto updatedProfile = medicalProfileService.updateUserProfile(userId, userProfileDto);
             return ResponseEntity.ok(updatedProfile);
         } catch (RuntimeException e) {

@@ -5,6 +5,7 @@ import com.app.auth.dto.DoctorResponseDto;
 import com.app.auth.dto.RegistrationResponse;
 import com.app.auth.dto.UserRegistrationDto;
 import com.app.auth.dto.UserProfileDto;
+import com.app.auth.config.AuthAccess;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.UserDetails;
 import com.app.auth.service.RegistrationService;
@@ -50,6 +51,7 @@ public class RegistrationController {
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<UserProfileDto> getUserById(@PathVariable("userId") Long userId) {
+        AuthAccess.requireSelfOrDoctor(userId);
         UserProfileDto userProfile = medicalProfileService.getUserCompleteProfile(userId);
         
         if (userProfile != null) {

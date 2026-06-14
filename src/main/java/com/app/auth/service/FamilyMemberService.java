@@ -8,5 +8,5 @@ public interface FamilyMemberService {
     List<FamilyMemberDto> getFamilyMembersForUser(Long userId);
     FamilyMemberDto createFamilyMember(FamilyMemberDto dto);
     FamilyMemberDto updateFamilyMember(Long id, FamilyMemberDto dto);
-    void deleteFamilyMember(Long id);
+    void deleteFamilyMember(Long userId, Long id);
 }

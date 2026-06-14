@@ -56,12 +56,12 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOriginPatterns(
-                    "https://neextapp.com",
-                    "https://api.neextapp.com",
-                    "http://api.neextapp.com",
-                    "http://neextapp.com",
-                    "https://www.neextapp.com",
-                    "http://www.neextapp.com",
+                    "https://kedulz.com",
+                    "https://api.kedulz.com",
+                    "http://api.kedulz.com",
+                    "http://kedulz.com",
+                    "https://www.kedulz.com",
+                    "http://www.kedulz.com",
                     "http://localhost:3000",
                     "http://localhost:19006",
                     "http://98.88.83.120:*",

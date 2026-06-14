@@ -40,6 +40,9 @@ public class FamilyMemberServiceImpl implements FamilyMemberService {
     @Override
     public FamilyMemberDto updateFamilyMember(Long id, FamilyMemberDto dto) {
         FamilyMember fm = repository.findById(id).orElseThrow(() -> new IllegalArgumentException("Family member not found"));
+        if (!fm.getUserId().equals(dto.getUserId())) {
+            throw new IllegalArgumentException("Family member does not belong to this user");
+        }
         if (dto.getName() != null) fm.setName(dto.getName());
         if (dto.getRelationship() != null) fm.setRelationship(dto.getRelationship());
         if (dto.getAge() != null) fm.setAge(dto.getAge());
@@ -51,7 +54,11 @@ public class FamilyMemberServiceImpl implements FamilyMemberService {
     }
 
     @Override
-    public void deleteFamilyMember(Long id) {
+    public void deleteFamilyMember(Long userId, Long id) {
+        FamilyMember fm = repository.findById(id).orElseThrow(() -> new IllegalArgumentException("Family member not found"));
+        if (!fm.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("Family member does not belong to this user");
+        }
         repository.deleteById(id);
     }
 
