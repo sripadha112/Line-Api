@@ -17,7 +17,7 @@ fi
 mkdir -p /opt/lineapp/logs /opt/lineapp/request-logs
 
 # Set Firebase credentials path for FCM push notifications
-export GOOGLE_APPLICATION_CREDENTIALS="/home/ec2-user/NeextApp-api/config/firebase-credentials.json"
+export GOOGLE_APPLICATION_CREDENTIALS="/home/ec2-user/kedulz-api/config/firebase-credentials.json"
 echo "Firebase credentials: $GOOGLE_APPLICATION_CREDENTIALS"
 
 cd "$APP_DIR"

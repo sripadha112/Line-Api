@@ -5,7 +5,7 @@
 ###############################################################################
 
 APP_NAME="lineapp"
-APP_DIR="/home/ec2-user/NeextApp-api"
+APP_DIR="/home/ec2-user/kedulz-api"
 
 echo "=========================================="
 echo "Restarting Line Application"
@@ -43,7 +43,7 @@ if [ $START_STATUS -eq 0 ]; then
 else
     echo ""
     echo "✗ ERROR: Failed to restart application"
-    echo "Check logs at: /home/ec2-user/NeextApp-api/logs/application.out"
+    echo "Check logs at: /home/ec2-user/kedulz-api/logs/application.out"
     echo "=========================================="
     exit 1
 fi

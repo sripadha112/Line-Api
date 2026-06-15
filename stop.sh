@@ -5,7 +5,7 @@
 ###############################################################################
 
 APP_NAME="lineapp"
-APP_DIR="/home/ec2-user/NeextApp-api"
+APP_DIR="/home/ec2-user/kedulz-api"
 PID_FILE="$APP_DIR/app.pid"
 
 echo "=========================================="

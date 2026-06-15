@@ -6,10 +6,10 @@
 ###############################################################################
 
 APP_NAME="lineapp"
-APP_DIR="/home/ec2-user/NeextApp-api"
+APP_DIR="/home/ec2-user/kedulz-api"
 JAR_FILE="$APP_DIR/line-application-1.0.0.jar"
 PID_FILE="$APP_DIR/app.pid"
-LOG_DIR="/home/ec2-user/NeextApp-api/logs"
+LOG_DIR="/home/ec2-user/kedulz-api/logs"
 
 # JVM Options optimized for Java 17 and minimal RAM usage
 JAVA_OPTS="-Xms256m \
@@ -67,7 +67,7 @@ if [ ! -d "$LOG_DIR" ]; then
     mkdir -p "$LOG_DIR"
 fi
 
-REQUEST_LOG_DIR="/home/ec2-user/NeextApp-api/request"
+REQUEST_LOG_DIR="/home/ec2-user/kedulz-api/request"
 if [ ! -d "$REQUEST_LOG_DIR" ]; then
     echo "Creating request log directory: $REQUEST_LOG_DIR"
     mkdir -p "$REQUEST_LOG_DIR"

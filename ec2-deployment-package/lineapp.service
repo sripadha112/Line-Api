@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=ec2-user
-WorkingDirectory=/home/ec2-user/NeextApp-api
+WorkingDirectory=/home/ec2-user/kedulz-api
 
 # Optimized JVM settings for EC2 t2.micro/t3.micro with better performance
 ExecStart=/usr/bin/java \
@@ -23,9 +23,9 @@ ExecStart=/usr/bin/java \
     -Djava.net.preferIPv4Stack=true \
     -Dfile.encoding=UTF-8 \
     -Dserver.tomcat.threads.max=50 \
-    -jar /home/ec2-user/NeextApp-api/auth-service-0.0.1-SNAPSHOT.jar \
+    -jar /home/ec2-user/kedulz-api/auth-service-0.0.1-SNAPSHOT.jar \
     --spring.profiles.active=prod \
-    --spring.config.location=file:/home/ec2-user/NeextApp-api/application-prod.properties
+    --spring.config.location=file:/home/ec2-user/kedulz-api/application-prod.properties
 
 # Performance and reliability
 Restart=always
