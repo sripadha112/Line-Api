@@ -27,12 +27,48 @@ public class AuthService {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+//    public CheckMobileResponse checkMobile(CheckMobileRequest req) {
+//        boolean exists = userRepo.findByMobileNumber(req.getMobileNumber()).isPresent();
+//        if (!exists) {
+//            exists = doctorRepo.findByMobileNumber(req.getMobileNumber()).isPresent();
+//        }
+//        return new CheckMobileResponse(exists);
+//    }
+
     public CheckMobileResponse checkMobile(CheckMobileRequest req) {
-        boolean exists = userRepo.findByMobileNumber(req.getMobileNumber()).isPresent();
-        if (!exists) {
-            exists = doctorRepo.findByMobileNumber(req.getMobileNumber()).isPresent();
+
+        boolean mobileExists = false;
+        boolean pinExists = false;
+
+        Optional<UserDetails> user =
+                userRepo.findByMobileNumber(req.getMobileNumber());
+
+        if (user.isPresent()) {
+
+            mobileExists = true;
+
+            pinExists =
+                    user.get().getPinHash() != null &&
+                            !user.get().getPinHash().isBlank();
+
+            return new CheckMobileResponse(mobileExists, pinExists, user.get().getId());
         }
-        return new CheckMobileResponse(exists);
+
+        Optional<DoctorDetails> doctor =
+                doctorRepo.findByMobileNumber(req.getMobileNumber());
+
+        if (doctor.isPresent()) {
+
+            mobileExists = true;
+
+            pinExists =
+                    doctor.get().getPinHash() != null &&
+                            !doctor.get().getPinHash().isBlank();
+
+            return new CheckMobileResponse(mobileExists, pinExists, user.get().getId());
+        }
+
+        return new CheckMobileResponse(false, false, null);
     }
 
     @Transactional
@@ -97,5 +133,19 @@ public class AuthService {
         }
 
         throw new IllegalStateException("USER_NOT_FOUND");
+    }
+
+    @Transactional
+    public String setPin(String pin, Long id) {
+        UserDetails user = userRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getPinHash() != null && !user.getPinHash().isEmpty()) {
+            return "PIN already exists";
+        }
+        user.setPinHash(passwordEncoder.encode(pin));
+        userRepo.save(user);
+
+        return "Success";
     }
 }

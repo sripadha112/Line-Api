@@ -16,10 +16,40 @@ public class AuthDtos {
     }
 
     public static class CheckMobileResponse {
-        private boolean exists;
-        public CheckMobileResponse(boolean exists) { this.exists = exists; }
-        public boolean isExists() { return exists; }
-        public void setExists(boolean exists) { this.exists = exists; }
+
+        private boolean mobileExists;
+        private boolean pinExists;
+        private Long userId;
+
+        public Long getUserId() {
+            return userId;
+        }
+
+        public void setUserId(Long userId) {
+            this.userId = userId;
+        }
+
+        public CheckMobileResponse(boolean mobileExists, boolean pinExists, Long userId) {
+            this.mobileExists = mobileExists;
+            this.pinExists = pinExists;
+            this.userId = userId;
+        }
+
+        public boolean isMobileExists() {
+            return mobileExists;
+        }
+
+        public void setMobileExists(boolean mobileExists) {
+            this.mobileExists = mobileExists;
+        }
+
+        public boolean isPinExists() {
+            return pinExists;
+        }
+
+        public void setPinExists(boolean pinExists) {
+            this.pinExists = pinExists;
+        }
     }
 
     // ── Register: mobile + PIN + role (+ fullName optional) ───────────────

@@ -37,7 +37,8 @@ public class UserRegistrationDto {
     @Size(max = 100, message = "Country must not exceed 100 characters")
     private String country;
 
-    @Pattern(regexp = "^[0-9]{4,6}$", message = "PIN must be 4-6 digits")
+//    @NotBlank
+//    @Pattern(regexp = "^[0-9]{4,6}$", message = "PIN must be 4-6 digits")
     private String pin;
 
     // Constructors
