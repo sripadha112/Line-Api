@@ -1,9 +1,9 @@
 package com.app.auth.controller;
 
+import com.app.auth.dto.AuthDtos.AuthResponse;
 import com.app.auth.dto.AuthDtos.CheckMobileRequest;
 import com.app.auth.dto.AuthDtos.LoginRequest;
 import com.app.auth.dto.AuthDtos.RegisterRequest;
-import com.app.auth.dto.AuthDtos.AuthResponse;
 import com.app.auth.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +26,12 @@ public class AuthController {
      */
     @PostMapping("/check-mobile")
     public ResponseEntity<?> checkMobile(@Valid @RequestBody CheckMobileRequest req) {
-        return ResponseEntity.ok(authService.checkMobile(req));
+        try {
+            return ResponseEntity.ok(authService.checkMobile(req));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Error while validating the mobile number");
+        }
     }
 
     /**

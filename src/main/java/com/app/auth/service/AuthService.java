@@ -27,47 +27,30 @@ public class AuthService {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-//    public CheckMobileResponse checkMobile(CheckMobileRequest req) {
-//        boolean exists = userRepo.findByMobileNumber(req.getMobileNumber()).isPresent();
-//        if (!exists) {
-//            exists = doctorRepo.findByMobileNumber(req.getMobileNumber()).isPresent();
-//        }
-//        return new CheckMobileResponse(exists);
-//    }
-
     public CheckMobileResponse checkMobile(CheckMobileRequest req) {
 
-        boolean mobileExists = false;
-        boolean pinExists = false;
-
-        Optional<UserDetails> user =
-                userRepo.findByMobileNumber(req.getMobileNumber());
+        // Check if user exists
+        Optional<UserDetails> user = userRepo.findByMobileNumber(req.getMobileNumber());
 
         if (user.isPresent()) {
-
-            mobileExists = true;
-
-            pinExists =
-                    user.get().getPinHash() != null &&
-                            !user.get().getPinHash().isBlank();
-
-            return new CheckMobileResponse(mobileExists, pinExists, user.get().getId());
+            UserDetails userDetails = user.get();
+            boolean pinExists = userDetails.getPinHash() != null &&
+                    !userDetails.getPinHash().isBlank();
+            return new CheckMobileResponse(true, pinExists, userDetails.getId());
         }
 
-        Optional<DoctorDetails> doctor =
-                doctorRepo.findByMobileNumber(req.getMobileNumber());
+        // Check if doctor exists
+        Optional<DoctorDetails> doctor = doctorRepo.findByMobileNumber(req.getMobileNumber());
 
         if (doctor.isPresent()) {
-
-            mobileExists = true;
-
-            pinExists =
-                    doctor.get().getPinHash() != null &&
-                            !doctor.get().getPinHash().isBlank();
-
-            return new CheckMobileResponse(mobileExists, pinExists, user.get().getId());
+            DoctorDetails doctorDetails = doctor.get();
+            boolean pinExists = doctorDetails.getPinHash() != null &&
+                    !doctorDetails.getPinHash().isBlank();
+            // Return doctor's ID, not user's ID
+            return new CheckMobileResponse(true, pinExists, doctorDetails.getId());
         }
 
+        // Neither user nor doctor found
         return new CheckMobileResponse(false, false, null);
     }
 
@@ -137,15 +120,44 @@ public class AuthService {
 
     @Transactional
     public String setPin(String pin, Long id) {
-        UserDetails user = userRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        if (user.getPinHash() != null && !user.getPinHash().isEmpty()) {
-            return "PIN already exists";
+        // Validate input
+        if (pin == null || pin.isEmpty()) {
+            return "PIN cannot be empty";
         }
-        user.setPinHash(passwordEncoder.encode(pin));
-        userRepo.save(user);
+        if (id == null || id <= 0) {
+            return "Invalid ID";
+        }
+        if (!pin.matches("^[0-9]{4,6}$")) {
+            return "PIN must be 4-6 digits";
+        }
 
-        return "Success";
+        String encodedPin = passwordEncoder.encode(pin);
+
+        // Check User
+        var user = userRepo.findById(id);
+        if (user.isPresent()) {
+            UserDetails userDetails = user.get();
+            if (userDetails.getPinHash() != null && !userDetails.getPinHash().isEmpty()) {
+                return "PIN already exists";
+            }
+            userDetails.setPinHash(encodedPin);
+            userDetails.setUpdatedAt(java.time.OffsetDateTime.now());
+            userRepo.save(userDetails);
+            return "success";
+        }
+
+        // Check Doctor (NEW!)
+        var doctor = doctorRepo.findById(id);
+        if (doctor.isPresent()) {
+            DoctorDetails doctorDetails = doctor.get();
+            if (doctorDetails.getPinHash() != null && !doctorDetails.getPinHash().isEmpty()) {
+                return "PIN already exists";
+            }
+            doctorDetails.setPinHash(encodedPin);
+            doctorRepo.save(doctorDetails);
+            return "success";
+        }
+
+        return "User/Doctor not found";
     }
 }
