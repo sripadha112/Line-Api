@@ -5,6 +5,7 @@ import com.app.auth.dto.DoctorResponseDto;
 import com.app.auth.dto.RegistrationResponse;
 import com.app.auth.dto.UserRegistrationDto;
 import com.app.auth.dto.UserProfileDto;
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.config.AuthAccess;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.UserDetails;
@@ -50,7 +51,8 @@ public class RegistrationController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<UserProfileDto> getUserById(@PathVariable("userId") Long userId) {
+    public ResponseEntity<UserProfileDto> getUserById(@PathVariable("userId") String encodedUserId) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
         AuthAccess.requireSelfOrDoctor(userId);
         UserProfileDto userProfile = medicalProfileService.getUserCompleteProfile(userId);
         
@@ -69,7 +71,8 @@ public class RegistrationController {
      * NOTE: Prefer /api/doctors/{doctorId}/workplaces for primary doctor data
      */
     @GetMapping("/doctor/{doctorId}")
-    public ResponseEntity<DoctorResponseDto> getDoctorById(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<DoctorResponseDto> getDoctorById(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         DoctorResponseDto doctor = registrationService.getDoctorResponseById(doctorId);
         
         if (doctor != null) {

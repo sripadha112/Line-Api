@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.DoctorSlotDto;
 import com.app.auth.service.DoctorSlotService;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,11 @@ public class DoctorSlotController {
 
     @GetMapping("/doctor/{doctorId}/available")
     public ResponseEntity<List<DoctorSlotDto>> getAvailableSlots(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @RequestParam(value = "date", required = false) LocalDate date,
             @RequestParam(value = "fromDate", required = false) LocalDate fromDate,
             @RequestParam(value = "toDate", required = false) LocalDate toDate) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         List<DoctorSlotDto> slots;
         
@@ -46,9 +48,11 @@ public class DoctorSlotController {
 
     @GetMapping("/doctor/{doctorId}/workplace/{workplaceId}/available")
     public ResponseEntity<List<DoctorSlotDto>> getAvailableSlotsByWorkplace(
-            @PathVariable("doctorId") Long doctorId,
-            @PathVariable("workplaceId") Long workplaceId,
+            @PathVariable("doctorId") String encodedDoctorId,
+            @PathVariable("workplaceId") String encodedWorkplaceId,
             @RequestParam("date") LocalDate date) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
+        Long workplaceId = QueryParamIdCrypto.decodeLong(encodedWorkplaceId);
         
         List<DoctorSlotDto> slots = slotService.getAvailableSlotsByWorkplace(doctorId, workplaceId, date);
         return ResponseEntity.ok(slots);
@@ -56,8 +60,9 @@ public class DoctorSlotController {
 
     @PostMapping("/doctor/{doctorId}/generate")
     public ResponseEntity<String> generateSlotsForDoctor(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @RequestParam("date") LocalDate date) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         slotService.generateSlotsForDoctorAndDate(doctorId, date);
         return ResponseEntity.ok("Slots generated successfully for doctor " + doctorId + " on " + date);

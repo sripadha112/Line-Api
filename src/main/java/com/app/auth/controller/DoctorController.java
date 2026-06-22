@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.*;
 import com.app.auth.entity.Appointment;
 // FutureTwoDayAppointment entity remains in the project for safety but is no longer used here
@@ -65,8 +66,9 @@ public class DoctorController {
      */
     @GetMapping("/{doctorId}/appointments/history")
     public ResponseEntity<List<DoctorHistoryWorkspaceDto>> history(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @RequestParam(value = "limit", defaultValue = "100") int limit) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         // Validate limit to prevent excessive data retrieval
         if (limit > 500) {
             limit = 500;
@@ -80,8 +82,9 @@ public class DoctorController {
      * Supports extending appointments by hours/minutes or moving to specific date
      */
     @PostMapping("/{doctorId}/appointments/bulk-reschedule")
-    public ResponseEntity<Map<String, String>> reschedule(@PathVariable("doctorId") Long doctorId,
+    public ResponseEntity<Map<String, String>> reschedule(@PathVariable("doctorId") String encodedDoctorId,
                                                          @Valid @RequestBody WorkspaceBulkRescheduleDto request) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         // Collect all appointment IDs for the doctor and workspace with status BOOKED
         List<Long> appointmentIds = new ArrayList<>();
         List<Appointment> allCurrentAppointments = appointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(request.getWorkspaceId());
@@ -155,8 +158,9 @@ public class DoctorController {
      * Marks all BOOKED appointments as CANCELLED for the given workspace and date
      */
     @PostMapping("/workspaces/{workspaceId}/appointments/cancel-day")
-    public ResponseEntity<Map<String, String>> cancelWorkspaceDay(@PathVariable("workspaceId") Long workspaceId,
+    public ResponseEntity<Map<String, String>> cancelWorkspaceDay(@PathVariable("workspaceId") String encodedWorkspaceId,
                                                                  @Valid @RequestBody CancelDayRequest req) {
+        Long workspaceId = QueryParamIdCrypto.decodeLong(encodedWorkspaceId);
         String result = cancelAllWorkspaceAppointments(workspaceId, req);
         return ResponseEntity.ok(Map.of("message", result));
     }

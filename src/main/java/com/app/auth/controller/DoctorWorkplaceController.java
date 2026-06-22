@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.BulkAppointmentStatusUpdateDto;
 import com.app.auth.dto.DailyAppointmentStatusDto;
 import com.app.auth.dto.DoctorAppointmentViewDto;
@@ -66,7 +67,8 @@ public class DoctorWorkplaceController {
      * Cache for 5 minutes to reduce server load
      */
     @GetMapping("/{doctorId}/workplaces")
-    public ResponseEntity<List<DoctorWorkplaceDto>> getDoctorWorkplaces(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<List<DoctorWorkplaceDto>> getDoctorWorkplaces(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         List<DoctorWorkplace> workplaces = workplaceRepository.findByDoctorId(doctorId);
         
         // Early return if no workplaces found
@@ -91,10 +93,11 @@ public class DoctorWorkplaceController {
      */
     @PostMapping("/{doctorId}/add-workplaces")
     public ResponseEntity<Map<String, Object>> addDoctorWorkplace(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @Valid @RequestBody DoctorWorkplaceCreateDto createRequest) {
         
         try {
+            Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
             // Check if doctor exists
             Optional<DoctorDetails> doctorOpt = doctorDetailsRepository.findById(doctorId);
             if (!doctorOpt.isPresent()) {
@@ -142,7 +145,8 @@ public class DoctorWorkplaceController {
     }
 
     @GetMapping("/{doctorId}/appointments/today/status")
-    public ResponseEntity<DailyAppointmentStatusDto> getTodayAppointmentStatus(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<DailyAppointmentStatusDto> getTodayAppointmentStatus(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         DailyAppointmentStatusDto status = dailyAppointmentService.getDoctorCurrentDateAppointmentStatus(doctorId);
         return ResponseEntity.ok(status);
     }
@@ -155,8 +159,9 @@ public class DoctorWorkplaceController {
      */
     @GetMapping("/{doctorId}/appointments/{appointmentDate}/patients")
     public ResponseEntity<List<DoctorAppointmentViewDto>> getDoctorPatientsForDate(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @PathVariable("appointmentDate") String appointmentDate) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         List<DoctorAppointmentViewDto> appointments = enhancedAppointmentService
                 .getDoctorAppointmentsWithUserDetails(doctorId, appointmentDate);
@@ -169,9 +174,10 @@ public class DoctorWorkplaceController {
      */
     @PutMapping("/{doctorId}/appointments/{appointmentDate}/update-status")
     public ResponseEntity<String> updatePatientsStatus(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @PathVariable("appointmentDate") String appointmentDate,
             @Valid @RequestBody BulkAppointmentStatusUpdateDto request) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         String result = enhancedAppointmentService
                 .bulkUpdateAppointmentStatus(doctorId, appointmentDate, request);
@@ -184,7 +190,8 @@ public class DoctorWorkplaceController {
      */
     @GetMapping("/workplaces/{workplaceId}/appointments")
     public ResponseEntity<List<WorkspaceDateAppointmentsDto>> getWorkspaceAppointments(
-            @PathVariable("workplaceId") Long workplaceId) {
+            @PathVariable("workplaceId") String encodedWorkplaceId) {
+        Long workplaceId = QueryParamIdCrypto.decodeLong(encodedWorkplaceId);
         
         List<WorkspaceDateAppointmentsDto> appointments = getWorkspaceAppointmentsGroupedByDate(workplaceId);
         return ResponseEntity.ok(appointments);

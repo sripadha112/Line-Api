@@ -4,6 +4,7 @@ import com.app.auth.dto.AuthDtos.AuthResponse;
 import com.app.auth.dto.AuthDtos.CheckMobileRequest;
 import com.app.auth.dto.AuthDtos.LoginRequest;
 import com.app.auth.dto.AuthDtos.RegisterRequest;
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,8 +69,10 @@ public class AuthController {
     }
 
     @PutMapping("/setpin")
-    public ResponseEntity<?> setpin(@RequestParam String pin, @RequestParam Long id){
-        String response = authService.setPin(pin, id);
+    public ResponseEntity<?> setpin(@RequestParam String pin, @RequestParam String id){
+        String response = authService.setPin(
+                QueryParamIdCrypto.decodeString(pin, "pin"),
+                QueryParamIdCrypto.decodeLong(id));
         if (response.equalsIgnoreCase("success")) {
             return ResponseEntity.status(HttpStatus.OK).body(response);
         } else if (response.equalsIgnoreCase("PIN already exists")) {
