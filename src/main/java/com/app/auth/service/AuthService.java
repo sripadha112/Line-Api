@@ -1,6 +1,7 @@
 package com.app.auth.service;
 
 import com.app.auth.config.JwtUtil;
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.AuthDtos.*;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.UserDetails;
@@ -82,6 +83,10 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse login(LoginRequest req) {
+        String pin = QueryParamIdCrypto.decodeString(req.getPin(), "pin");
+        if (!pin.matches("^[0-9]{4,6}$")) {
+            throw new IllegalArgumentException("PIN must be 4-6 digits");
+        }
 
         // ── Try USER table first ─────────────────────────────────────────
         Optional<UserDetails> userOpt = userRepo.findByMobileNumber(req.getMobileNumber());
@@ -91,7 +96,7 @@ public class AuthService {
             if (user.getPinHash() == null) {
                 throw new IllegalStateException("PIN_NOT_SET");
             }
-            if (!passwordEncoder.matches(req.getPin(), user.getPinHash())) {
+            if (!passwordEncoder.matches(pin, user.getPinHash())) {
                 throw new IllegalArgumentException("Incorrect PIN");
             }
 
@@ -107,7 +112,7 @@ public class AuthService {
             if (doctor.getPinHash() == null) {
                 throw new IllegalStateException("PIN_NOT_SET");
             }
-            if (!passwordEncoder.matches(req.getPin(), doctor.getPinHash())) {
+            if (!passwordEncoder.matches(pin, doctor.getPinHash())) {
                 throw new IllegalArgumentException("Incorrect PIN");
             }
 

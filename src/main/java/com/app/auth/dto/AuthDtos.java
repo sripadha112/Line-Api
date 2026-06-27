@@ -84,7 +84,6 @@ public class AuthDtos {
         private String mobileNumber;
 
         @NotBlank
-        @Pattern(regexp = "^[0-9]{4,6}$", message = "PIN must be 4-6 digits")
         private String pin;
 
         public String getMobileNumber() { return mobileNumber; }
