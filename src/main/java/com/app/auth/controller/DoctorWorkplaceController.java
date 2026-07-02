@@ -20,10 +20,12 @@ import com.app.auth.repository.UserDetailsRepository;
 import com.app.auth.service.DailyAppointmentService;
 import com.app.auth.service.EnhancedAppointmentService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -43,6 +45,7 @@ public class DoctorWorkplaceController {
     private final DoctorDetailsRepository doctorDetailsRepository;
     private final DailyAppointmentService dailyAppointmentService;
     private final EnhancedAppointmentService enhancedAppointmentService;
+    private final String appTimezone;
 
     public DoctorWorkplaceController(DoctorWorkplaceRepository workplaceRepository,
                                    AppointmentRepository appointmentRepository,
@@ -50,7 +53,8 @@ public class DoctorWorkplaceController {
                                    UserDetailsRepository userDetailsRepository,
                                    DoctorDetailsRepository doctorDetailsRepository,
                                    DailyAppointmentService dailyAppointmentService,
-                                   EnhancedAppointmentService enhancedAppointmentService) {
+                                   EnhancedAppointmentService enhancedAppointmentService,
+                                   @Value("${app.timezone:Asia/Kolkata}") String appTimezone) {
         this.workplaceRepository = workplaceRepository;
         this.appointmentRepository = appointmentRepository;
     // this.futureAppointmentRepository = futureAppointmentRepository;
@@ -58,6 +62,7 @@ public class DoctorWorkplaceController {
         this.doctorDetailsRepository = doctorDetailsRepository;
         this.dailyAppointmentService = dailyAppointmentService;
         this.enhancedAppointmentService = enhancedAppointmentService;
+        this.appTimezone = appTimezone;
     }
 
 
@@ -74,7 +79,7 @@ public class DoctorWorkplaceController {
         // Early return if no workplaces found
         if (workplaces.isEmpty()) {
             return ResponseEntity.ok()
-                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                .cacheControl(org.springframework.http.CacheControl.noStore())
                 .body(new ArrayList<>());
         }
         
@@ -82,9 +87,9 @@ public class DoctorWorkplaceController {
                 .map(workplace -> convertToDto(workplace, doctorId))
                 .collect(Collectors.toList());
         
-        // Add caching headers for better frontend performance
+        // Do not cache this response because appointment counts are dynamic.
         return ResponseEntity.ok()
-                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+            .cacheControl(org.springframework.http.CacheControl.noStore())
                 .body(workplaceDtos);
     }
 
@@ -286,8 +291,8 @@ public class DoctorWorkplaceController {
      * Today's appointments go to todayCount, future dates go to futureCount
      */
     private AppointmentCounts getAppointmentCounts(Long doctorId, Long workplaceId) {
-        // Get today's date as string
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        // Use app timezone for date segregation (today vs future)
+        String today = LocalDate.now(ZoneId.of(appTimezone)).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         long todayCount = appointmentRepository.countByDoctorIdAndWorkplaceIdAndAppointmentDateAndStatus(doctorId, workplaceId, today, "BOOKED");
         long futureCount = appointmentRepository.countByDoctorIdAndWorkplaceIdAndAppointmentDateGreaterThanAndStatus(doctorId, workplaceId, today, "BOOKED");
 
