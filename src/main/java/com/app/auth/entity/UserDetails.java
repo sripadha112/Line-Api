@@ -1,5 +1,6 @@
 package com.app.auth.entity;
 
+import com.app.auth.config.EncryptedStringConverter;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
@@ -107,18 +108,23 @@ public class UserDetails {
     private Boolean hasLiverDisease = false;
 
     // Medical Details (stored as comma-separated strings)
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "current_medications", columnDefinition = "TEXT")
     private String currentMedicationsStr; // comma-separated values
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "allergies", columnDefinition = "TEXT")
     private String allergiesStr; // comma-separated values
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "chronic_diseases", columnDefinition = "TEXT")
     private String chronicDiseasesStr; // comma-separated values
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "previous_surgeries", columnDefinition = "TEXT")
     private String previousSurgeriesStr; // comma-separated values
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "vaccinations", columnDefinition = "TEXT")
     private String vaccinationsStr; // comma-separated values
 
@@ -133,6 +139,7 @@ public class UserDetails {
     private String emergencyContactRelation;
 
     // Additional Notes
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "family_medical_history", columnDefinition = "TEXT")
     private String familyMedicalHistory;
 

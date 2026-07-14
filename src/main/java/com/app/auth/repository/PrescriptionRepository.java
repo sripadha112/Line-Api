@@ -8,6 +8,8 @@ import java.util.List;
 
 @Repository
 public interface PrescriptionRepository extends JpaRepository<Prescription, Integer> {
+
+    long deleteByUserId(Integer userId);
     
     List<Prescription> findByUserIdOrderByCreatedAtDesc(Integer userId);
     

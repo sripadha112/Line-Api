@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface FutureTwoDayAppointmentRepository extends JpaRepository<FutureTwoDayAppointment, Long> {
+
+    long deleteByUserId(Long userId);
     
     List<FutureTwoDayAppointment> findByUserIdOrderByAppointmentTime(@Param("userId") Long userId);
     

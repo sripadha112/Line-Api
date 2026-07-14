@@ -1,5 +1,6 @@
 package com.app.auth.entity;
 
+import com.app.auth.config.EncryptedStringConverter;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Type;
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
@@ -24,6 +25,7 @@ public class Prescription {
     @Column(name = "appointment_id")
     private Integer appointmentId;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "medical_notes", columnDefinition = "TEXT")
     private String medicalNotes;
 
