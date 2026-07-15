@@ -1,11 +1,7 @@
 package com.app.auth.service.impl;
 
-import com.app.auth.dto.DoctorRegistrationDto;
-import com.app.auth.dto.DoctorResponseDto;
-import com.app.auth.dto.RegistrationResponse;
-import com.app.auth.dto.UserRegistrationDto;
-import com.app.auth.dto.WorkplaceResponseDto;
-import com.app.auth.dto.WorkspaceDto;
+import com.app.auth.config.JwtUtil;
+import com.app.auth.dto.*;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.DoctorWorkplace;
 import com.app.auth.entity.UserDetails;
@@ -13,7 +9,9 @@ import com.app.auth.repository.DoctorDetailsRepository;
 import com.app.auth.repository.DoctorWorkplaceRepository;
 import com.app.auth.repository.UserDetailsRepository;
 import com.app.auth.service.RegistrationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +34,11 @@ public class RegistrationServiceImpl implements RegistrationService {
         this.doctorDetailsRepository = doctorDetailsRepository;
         this.doctorWorkplaceRepository = doctorWorkplaceRepository;
     }
+
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @Override
     @Transactional
@@ -78,10 +81,15 @@ public class RegistrationServiceImpl implements RegistrationService {
             userDetails.setPincode(isNotEmpty(userRegistrationDto.getPincode()) ? userRegistrationDto.getPincode() : null);
             userDetails.setCountry(isNotEmpty(userRegistrationDto.getCountry()) ? userRegistrationDto.getCountry() : null);
             userDetails.setCreatedAt(OffsetDateTime.now());
+            userDetails.setPinHash(passwordEncoder.encode(userRegistrationDto.getPin()));
+            userDetails.setRole("USER"); // or read from DTO if you collect role too
+            userDetails.setProfileCompleted(true);
 
             UserDetails savedUser = userDetailsRepository.save(userDetails);
 
-            return RegistrationResponse.success("User registration successful", savedUser.getId());
+            String token = jwtUtil.generateToken(savedUser.getMobileNumber(), savedUser.getId(), savedUser.getRole());
+
+            return RegistrationResponse.success("User registration successful", savedUser.getId(), token, savedUser.getRole(), savedUser.getFullName());
 
         } catch (DataIntegrityViolationException e) {
             return RegistrationResponse.error("Registration failed: Duplicate mobile number or email");
@@ -118,18 +126,21 @@ public class RegistrationServiceImpl implements RegistrationService {
             doctorDetails.setCountry(doctorRegistrationDto.getCountry());
             doctorDetails.setSpecialization(doctorRegistrationDto.getSpecialization());
             doctorDetails.setDesignation(doctorRegistrationDto.getDesignation());
-            
             doctorDetails.setCreatedAt(OffsetDateTime.now());
+
+            // ── NEW: Set PIN (hashed) and role ────────────────────────────────
+            doctorDetails.setPinHash(passwordEncoder.encode(doctorRegistrationDto.getPin()));
+            doctorDetails.setRole("DOCTOR");
 
             DoctorDetails savedDoctor = doctorDetailsRepository.save(doctorDetails);
 
-            // Create workspaces
+            // Create workspaces (unchanged)
             if (doctorRegistrationDto.getWorkspaces() != null && !doctorRegistrationDto.getWorkspaces().isEmpty()) {
                 boolean hasPrimary = false;
-                
+
                 for (int i = 0; i < doctorRegistrationDto.getWorkspaces().size(); i++) {
                     WorkspaceDto workspaceDto = doctorRegistrationDto.getWorkspaces().get(i);
-                    
+
                     DoctorWorkplace workplace = new DoctorWorkplace();
                     workplace.setDoctor(savedDoctor);
                     workplace.setWorkplaceName(workspaceDto.getWorkplaceName());
@@ -143,23 +154,25 @@ public class RegistrationServiceImpl implements RegistrationService {
                     workplace.setMorningEndTime(workspaceDto.getMorningEndTime());
                     workplace.setEveningStartTime(workspaceDto.getEveningStartTime());
                     workplace.setEveningEndTime(workspaceDto.getEveningEndTime());
-                    workplace.setCheckingDurationMinutes(workspaceDto.getCheckingDurationMinutes() != null ? 
-                        workspaceDto.getCheckingDurationMinutes() : 30);
-                    
-                    // Set the first workspace as primary if none is explicitly marked, or if explicitly marked
+                    workplace.setCheckingDurationMinutes(workspaceDto.getCheckingDurationMinutes() != null ?
+                            workspaceDto.getCheckingDurationMinutes() : 30);
+
                     if ((i == 0 && !hasPrimary) || (workspaceDto.getIsPrimary() != null && workspaceDto.getIsPrimary())) {
                         workplace.setIsPrimary(true);
                         hasPrimary = true;
                     } else {
                         workplace.setIsPrimary(false);
                     }
-                    
+
                     workplace.setCreatedAt(OffsetDateTime.now());
                     doctorWorkplaceRepository.save(workplace);
                 }
             }
 
-            return RegistrationResponse.successDoctor("Doctor registration successful", savedDoctor.getId());
+            // ── NEW: Generate token so frontend can log in immediately ─────────
+            String token = jwtUtil.generateToken(savedDoctor.getMobileNumber(), savedDoctor.getId(), savedDoctor.getRole());
+
+            return RegistrationResponse.successDoctor("Doctor registration successful", savedDoctor.getId(), token, savedDoctor.getRole(), savedDoctor.getFullName());
 
         } catch (DataIntegrityViolationException e) {
             return RegistrationResponse.error("Registration failed: Duplicate mobile number or email");
@@ -190,7 +203,8 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     public DoctorResponseDto getDoctorResponseById(Long doctorId) {
-        Optional<DoctorDetails> doctorOpt = doctorDetailsRepository.findById(doctorId);
+        // Use findByIdWithWorkplaces to eagerly fetch workplaces collection
+        Optional<DoctorDetails> doctorOpt = doctorDetailsRepository.findByIdWithWorkplaces(doctorId);
         if (doctorOpt.isEmpty()) {
             return null;
         }

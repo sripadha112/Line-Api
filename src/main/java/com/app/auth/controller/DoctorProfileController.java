@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.DoctorDetailsEnhancedDto;
 import com.app.auth.dto.DoctorProfileUpdateDto;
 import com.app.auth.dto.DoctorWorkplaceDto;
@@ -34,6 +35,11 @@ public class DoctorProfileController {
         this.doctorProfileService = doctorProfileService;
     }
 
+    /**
+     * Get authenticated doctor's profile (SECONDARY PRIORITY - Load after workplaces)
+     * OPTIMIZED: Cached for 5 minutes to reduce server load
+     * Frontend: Load this AFTER main workplaces data for better UX
+     */
     @GetMapping("/profile")
     public ResponseEntity<DoctorDetailsEnhancedDto> getDoctorProfile() {
         // Extract doctor ID from JWT token
@@ -60,11 +66,21 @@ public class DoctorProfileController {
         List<DoctorWorkplace> workplaces = workplaceRepository.findByDoctorId(doctorId);
 
         DoctorDetailsEnhancedDto dto = convertToDto(doctor, workplaces);
-        return ResponseEntity.ok(dto);
+        
+        // Add caching for better performance (secondary priority = 5min cache)
+        return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                .body(dto);
     }
 
+    /**
+     * Get doctor profile by ID (SECONDARY PRIORITY - Load after workplaces)
+     * OPTIMIZED: Cached for 5 minutes to reduce server load
+     * Frontend: Load this AFTER main workplaces data for better UX
+     */
     @GetMapping("/{doctorId}/profile")
-    public ResponseEntity<DoctorDetailsEnhancedDto> getDoctorProfileById(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<DoctorDetailsEnhancedDto> getDoctorProfileById(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         Optional<DoctorDetails> doctorOpt = doctorRepository.findById(doctorId);
         if (!doctorOpt.isPresent()) {
             return ResponseEntity.notFound().build();
@@ -74,7 +90,11 @@ public class DoctorProfileController {
         List<DoctorWorkplace> workplaces = workplaceRepository.findByDoctorId(doctorId);
 
         DoctorDetailsEnhancedDto dto = convertToDto(doctor, workplaces);
-        return ResponseEntity.ok(dto);
+        
+        // Add caching for better performance (secondary priority = 5min cache)
+        return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                .body(dto);
     }
 
     private DoctorDetailsEnhancedDto convertToDto(DoctorDetails doctor, List<DoctorWorkplace> workplaces) {
@@ -158,9 +178,10 @@ public class DoctorProfileController {
      * Update doctor profile by ID (for admin use)
      */
     @PutMapping("/{doctorId}/edit-profile")
-    public ResponseEntity<Map<String, Object>> updateDoctorProfileById(@PathVariable("doctorId") Long doctorId,
+    public ResponseEntity<Map<String, Object>> updateDoctorProfileById(@PathVariable("doctorId") String encodedDoctorId,
                                                                       @Valid @RequestBody DoctorProfileUpdateDto updateRequest) {
         try {
+            Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
             // Find doctor
             Optional<DoctorDetails> doctorOpt = doctorRepository.findById(doctorId);
             if (!doctorOpt.isPresent()) {

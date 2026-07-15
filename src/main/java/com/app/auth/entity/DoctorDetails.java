@@ -56,6 +56,18 @@ public class DoctorDetails {
     @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<DoctorWorkplace> workplaces;
 
+    @Column(name = "pin_hash")
+    private String pinHash;
+
+    @Column(name = "role")
+    private String role;
+
+    // getters/setters
+    public String getPinHash() { return pinHash; }
+    public void setPinHash(String pinHash) { this.pinHash = pinHash; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+
     // getters & setters
 
     public Long getId() { return id; }

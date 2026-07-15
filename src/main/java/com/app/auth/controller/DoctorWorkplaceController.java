@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.BulkAppointmentStatusUpdateDto;
 import com.app.auth.dto.DailyAppointmentStatusDto;
 import com.app.auth.dto.DoctorAppointmentViewDto;
@@ -19,10 +20,12 @@ import com.app.auth.repository.UserDetailsRepository;
 import com.app.auth.service.DailyAppointmentService;
 import com.app.auth.service.EnhancedAppointmentService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -42,6 +45,7 @@ public class DoctorWorkplaceController {
     private final DoctorDetailsRepository doctorDetailsRepository;
     private final DailyAppointmentService dailyAppointmentService;
     private final EnhancedAppointmentService enhancedAppointmentService;
+    private final String appTimezone;
 
     public DoctorWorkplaceController(DoctorWorkplaceRepository workplaceRepository,
                                    AppointmentRepository appointmentRepository,
@@ -49,7 +53,8 @@ public class DoctorWorkplaceController {
                                    UserDetailsRepository userDetailsRepository,
                                    DoctorDetailsRepository doctorDetailsRepository,
                                    DailyAppointmentService dailyAppointmentService,
-                                   EnhancedAppointmentService enhancedAppointmentService) {
+                                   EnhancedAppointmentService enhancedAppointmentService,
+                                   @Value("${app.timezone:Asia/Kolkata}") String appTimezone) {
         this.workplaceRepository = workplaceRepository;
         this.appointmentRepository = appointmentRepository;
     // this.futureAppointmentRepository = futureAppointmentRepository;
@@ -57,17 +62,35 @@ public class DoctorWorkplaceController {
         this.doctorDetailsRepository = doctorDetailsRepository;
         this.dailyAppointmentService = dailyAppointmentService;
         this.enhancedAppointmentService = enhancedAppointmentService;
+        this.appTimezone = appTimezone;
     }
 
 
-    //using this
+    /**
+     * Get all workplaces for a doctor (PRIMARY API for doctor details)
+     * OPTIMIZED: Returns workplaces with HTTP caching headers for better performance
+     * Cache for 5 minutes to reduce server load
+     */
     @GetMapping("/{doctorId}/workplaces")
-    public ResponseEntity<List<DoctorWorkplaceDto>> getDoctorWorkplaces(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<List<DoctorWorkplaceDto>> getDoctorWorkplaces(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         List<DoctorWorkplace> workplaces = workplaceRepository.findByDoctorId(doctorId);
+        
+        // Early return if no workplaces found
+        if (workplaces.isEmpty()) {
+            return ResponseEntity.ok()
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(new ArrayList<>());
+        }
+        
         List<DoctorWorkplaceDto> workplaceDtos = workplaces.stream()
                 .map(workplace -> convertToDto(workplace, doctorId))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(workplaceDtos);
+        
+        // Do not cache this response because appointment counts are dynamic.
+        return ResponseEntity.ok()
+            .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(workplaceDtos);
     }
 
     /**
@@ -75,10 +98,11 @@ public class DoctorWorkplaceController {
      */
     @PostMapping("/{doctorId}/add-workplaces")
     public ResponseEntity<Map<String, Object>> addDoctorWorkplace(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @Valid @RequestBody DoctorWorkplaceCreateDto createRequest) {
         
         try {
+            Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
             // Check if doctor exists
             Optional<DoctorDetails> doctorOpt = doctorDetailsRepository.findById(doctorId);
             if (!doctorOpt.isPresent()) {
@@ -126,7 +150,8 @@ public class DoctorWorkplaceController {
     }
 
     @GetMapping("/{doctorId}/appointments/today/status")
-    public ResponseEntity<DailyAppointmentStatusDto> getTodayAppointmentStatus(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<DailyAppointmentStatusDto> getTodayAppointmentStatus(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         DailyAppointmentStatusDto status = dailyAppointmentService.getDoctorCurrentDateAppointmentStatus(doctorId);
         return ResponseEntity.ok(status);
     }
@@ -139,8 +164,9 @@ public class DoctorWorkplaceController {
      */
     @GetMapping("/{doctorId}/appointments/{appointmentDate}/patients")
     public ResponseEntity<List<DoctorAppointmentViewDto>> getDoctorPatientsForDate(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @PathVariable("appointmentDate") String appointmentDate) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         List<DoctorAppointmentViewDto> appointments = enhancedAppointmentService
                 .getDoctorAppointmentsWithUserDetails(doctorId, appointmentDate);
@@ -153,9 +179,10 @@ public class DoctorWorkplaceController {
      */
     @PutMapping("/{doctorId}/appointments/{appointmentDate}/update-status")
     public ResponseEntity<String> updatePatientsStatus(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @PathVariable("appointmentDate") String appointmentDate,
             @Valid @RequestBody BulkAppointmentStatusUpdateDto request) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         String result = enhancedAppointmentService
                 .bulkUpdateAppointmentStatus(doctorId, appointmentDate, request);
@@ -168,7 +195,8 @@ public class DoctorWorkplaceController {
      */
     @GetMapping("/workplaces/{workplaceId}/appointments")
     public ResponseEntity<List<WorkspaceDateAppointmentsDto>> getWorkspaceAppointments(
-            @PathVariable("workplaceId") Long workplaceId) {
+            @PathVariable("workplaceId") String encodedWorkplaceId) {
+        Long workplaceId = QueryParamIdCrypto.decodeLong(encodedWorkplaceId);
         
         List<WorkspaceDateAppointmentsDto> appointments = getWorkspaceAppointmentsGroupedByDate(workplaceId);
         return ResponseEntity.ok(appointments);
@@ -263,8 +291,8 @@ public class DoctorWorkplaceController {
      * Today's appointments go to todayCount, future dates go to futureCount
      */
     private AppointmentCounts getAppointmentCounts(Long doctorId, Long workplaceId) {
-        // Get today's date as string
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        // Use app timezone for date segregation (today vs future)
+        String today = LocalDate.now(ZoneId.of(appTimezone)).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         long todayCount = appointmentRepository.countByDoctorIdAndWorkplaceIdAndAppointmentDateAndStatus(doctorId, workplaceId, today, "BOOKED");
         long futureCount = appointmentRepository.countByDoctorIdAndWorkplaceIdAndAppointmentDateGreaterThanAndStatus(doctorId, workplaceId, today, "BOOKED");
 

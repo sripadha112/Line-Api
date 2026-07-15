@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface FamilyMemberRepository extends JpaRepository<FamilyMember, Long> {
     List<FamilyMember> findByUserId(Long userId);
+    long deleteByUserId(Long userId);
 }

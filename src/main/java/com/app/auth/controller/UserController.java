@@ -1,5 +1,7 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.AuthAccess;
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.*;
 import com.app.auth.service.AppointmentService;
 import com.app.auth.service.EnhancedAppointmentService;
@@ -31,7 +33,9 @@ public class UserController {
      * For UI home screen - "Your Appointments" section
      */
     @GetMapping("/{userId}/appointments/all")
-    public ResponseEntity<UserAppointmentsResponseDto> getAllUserAppointments(@PathVariable("userId") Long userId) {
+    public ResponseEntity<UserAppointmentsResponseDto> getAllUserAppointments(@PathVariable("userId") String encodedUserId) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelf(userId);
         UserAppointmentsResponseDto appointments = enhancedAppointmentService.getUserAppointments(userId);
         return ResponseEntity.ok(appointments);
     }
@@ -43,10 +47,13 @@ public class UserController {
      */
     @GetMapping("/available-slots")
     public ResponseEntity<AvailableSlotsResponseDto> getAvailableSlots(
-            @RequestParam("doctorId") Long doctorId,
-            @RequestParam("workplaceId") Long workplaceId,
+            @RequestParam("doctorId") String doctorId,
+            @RequestParam("workplaceId") String workplaceId,
             @RequestParam(value = "date", required = false) String date) {
-        AvailableSlotsResponseDto slots = enhancedAppointmentService.getAvailableSlots(doctorId, workplaceId, date);
+        AvailableSlotsResponseDto slots = enhancedAppointmentService.getAvailableSlots(
+                QueryParamIdCrypto.decodeLong(doctorId),
+                QueryParamIdCrypto.decodeLong(workplaceId),
+                date);
         return ResponseEntity.ok(slots);
     }
     
@@ -102,8 +109,10 @@ public class UserController {
     // ========================
 
     @PostMapping("/{userId}/appointments/book")
-    public ResponseEntity<BookAppointmentResponse> book(@PathVariable("userId") Long userId,
+    public ResponseEntity<BookAppointmentResponse> book(@PathVariable("userId") String encodedUserId,
                                                @Valid @RequestBody BookAppointmentRequest req) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelf(userId);
         BookAppointmentResponse response = svc.bookAppointmentEnhanced(userId, req);
         return ResponseEntity.status(201).body(response);
     }
@@ -116,16 +125,21 @@ public class UserController {
 //    }
 
     @PostMapping("/{userId}/appointments/{appointmentId}/push-to-end")
-    public ResponseEntity<AppointmentDto> pushToEnd(@PathVariable("userId") Long userId,
-                                                    @PathVariable("appointmentId") Long appointmentId,
+    public ResponseEntity<AppointmentDto> pushToEnd(@PathVariable("userId") String encodedUserId,
+                                                    @PathVariable("appointmentId") String encodedAppointmentId,
                                                     @RequestBody(required = false) Map<String, String> body) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        Long appointmentId = QueryParamIdCrypto.decodeLong(encodedAppointmentId);
+        AuthAccess.requireSelf(userId);
         String reason = body != null ? body.getOrDefault("reason", "pushed by user") : "pushed by user";
         AppointmentDto ap = svc.pushToEnd(userId, appointmentId, reason);
         return ResponseEntity.ok(ap);
     }
 
     @GetMapping("/{userId}/appointments")
-    public ResponseEntity<List<AppointmentDto>> myAppointments(@PathVariable("userId") Long userId) {
+    public ResponseEntity<List<AppointmentDto>> myAppointments(@PathVariable("userId") String encodedUserId) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelf(userId);
         return ResponseEntity.ok(svc.getUserAppointments(userId));
     }
     
@@ -135,8 +149,10 @@ public class UserController {
      */
     @PostMapping("/{userId}/fcm-token")
     public ResponseEntity<Map<String, String>> registerFcmToken(
-            @PathVariable("userId") Long userId,
+            @PathVariable("userId") String encodedUserId,
             @RequestBody FcmTokenRequestDto request) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelf(userId);
         boolean success = enhancedAppointmentService.updateFcmToken(userId, request.getFcmToken(), request.getDeviceType());
         if (success) {
             return ResponseEntity.ok(Map.of(
@@ -156,8 +172,10 @@ public class UserController {
      */
     @PutMapping("/{userId}/notifications/toggle")
     public ResponseEntity<Map<String, String>> toggleNotifications(
-            @PathVariable("userId") Long userId,
+            @PathVariable("userId") String encodedUserId,
             @RequestParam("enabled") Boolean enabled) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelf(userId);
         boolean success = enhancedAppointmentService.toggleNotifications(userId, enabled);
         if (success) {
             return ResponseEntity.ok(Map.of(

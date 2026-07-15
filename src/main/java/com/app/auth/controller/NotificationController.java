@@ -89,7 +89,8 @@ public class NotificationController {
      * @param body        Notification body
      * @return Response containing the result of the notification operation
      */
-    @PostMapping("/notify/simple")
+    @CrossOrigin(origins = "*")
+    @GetMapping("/notify/simple")
     @Operation(summary = "Send simple push notification", 
                description = "Sends a simple Firebase Cloud Messaging push notification with basic parameters")
     @ApiResponses(value = {

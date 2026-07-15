@@ -1,5 +1,7 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
+import com.app.auth.config.AuthAccess;
 import com.app.auth.dto.CreatePrescriptionRequest;
 import com.app.auth.dto.PrescriptionDto;
 import com.app.auth.service.PrescriptionService;
@@ -37,8 +39,11 @@ public class PrescriptionController {
      */
     @PutMapping("/{id}")
     public ResponseEntity<PrescriptionDto> updatePrescription(
-            @PathVariable Integer id,
+            @PathVariable("id") String encodedId,
             @Valid @RequestBody CreatePrescriptionRequest request) {
+        Integer id = QueryParamIdCrypto.decodeInteger(encodedId);
+        PrescriptionDto existing = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(existing.getUserId().longValue());
         PrescriptionDto prescription = prescriptionService.updatePrescription(id, request);
         return ResponseEntity.ok(prescription);
     }
@@ -48,8 +53,10 @@ public class PrescriptionController {
      * GET /api/prescriptions/{id}
      */
     @GetMapping("/{id}")
-    public ResponseEntity<PrescriptionDto> getPrescriptionById(@PathVariable Integer id) {
+    public ResponseEntity<PrescriptionDto> getPrescriptionById(@PathVariable("id") String encodedId) {
+        Integer id = QueryParamIdCrypto.decodeInteger(encodedId);
         PrescriptionDto prescription = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(prescription.getUserId().longValue());
         return ResponseEntity.ok(prescription);
     }
 
@@ -58,7 +65,9 @@ public class PrescriptionController {
      * GET /api/prescriptions/user/{userId}
      */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<PrescriptionDto>> getPrescriptionsByUserId(@PathVariable Integer userId) {
+    public ResponseEntity<List<PrescriptionDto>> getPrescriptionsByUserId(@PathVariable("userId") String encodedUserId) {
+        Integer userId = QueryParamIdCrypto.decodeInteger(encodedUserId);
+        AuthAccess.requireSelfOrDoctor(userId.longValue());
         List<PrescriptionDto> prescriptions = prescriptionService.getPrescriptionsByUserId(userId);
         return ResponseEntity.ok(prescriptions);
     }
@@ -68,7 +77,8 @@ public class PrescriptionController {
      * GET /api/prescriptions/doctor/{doctorId}
      */
     @GetMapping("/doctor/{doctorId}")
-    public ResponseEntity<List<PrescriptionDto>> getPrescriptionsByDoctorId(@PathVariable Integer doctorId) {
+    public ResponseEntity<List<PrescriptionDto>> getPrescriptionsByDoctorId(@PathVariable("doctorId") String encodedDoctorId) {
+        Integer doctorId = QueryParamIdCrypto.decodeInteger(encodedDoctorId);
         List<PrescriptionDto> prescriptions = prescriptionService.getPrescriptionsByDoctorId(doctorId);
         return ResponseEntity.ok(prescriptions);
     }
@@ -78,7 +88,10 @@ public class PrescriptionController {
      * DELETE /api/prescriptions/{id}
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePrescription(@PathVariable Integer id) {
+    public ResponseEntity<Void> deletePrescription(@PathVariable("id") String encodedId) {
+        Integer id = QueryParamIdCrypto.decodeInteger(encodedId);
+        PrescriptionDto prescription = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(prescription.getUserId().longValue());
         prescriptionService.deletePrescription(id);
         return ResponseEntity.noContent().build();
     }
@@ -88,7 +101,10 @@ public class PrescriptionController {
      * GET /api/prescriptions/{id}/pdf
      */
     @GetMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> generatePrescriptionPdf(@PathVariable Integer id) {
+    public ResponseEntity<byte[]> generatePrescriptionPdf(@PathVariable("id") String encodedId) {
+        Integer id = QueryParamIdCrypto.decodeInteger(encodedId);
+        PrescriptionDto prescription = prescriptionService.getPrescriptionById(id);
+        AuthAccess.requireSelfOrDoctor(prescription.getUserId().longValue());
         byte[] pdfBytes = prescriptionService.generatePrescriptionPdf(id);
         
         HttpHeaders headers = new HttpHeaders();

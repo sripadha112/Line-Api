@@ -8,10 +8,19 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface PastAppointmentRepository extends JpaRepository<PastAppointment, Long> {
+
+    long deleteByUserId(Long userId);
     
     List<PastAppointment> findByUserIdOrderByAppointmentTimeDesc(@Param("userId") Long userId);
     
     List<PastAppointment> findByDoctorIdOrderByAppointmentTimeDesc(@Param("doctorId") Long doctorId);
+    
+    /**
+     * Optimized query to fetch limited past appointments for better performance
+     * Prevents loading ALL appointments when only recent history is needed
+     */
+    @Query(value = "SELECT * FROM past_appointments WHERE doctor_id = :doctorId ORDER BY appointment_time DESC LIMIT :limit", nativeQuery = true)
+    List<PastAppointment> findTopNByDoctorIdOrderByAppointmentTimeDesc(@Param("doctorId") Long doctorId, @Param("limit") int limit);
     
     @Query("SELECT pa FROM PastAppointment pa WHERE pa.userId = :userId AND pa.appointmentDate >= :fromDate ORDER BY pa.appointmentTime DESC")
     List<PastAppointment> findByUserIdAndAppointmentDateAfter(@Param("userId") Long userId, @Param("fromDate") String fromDate);

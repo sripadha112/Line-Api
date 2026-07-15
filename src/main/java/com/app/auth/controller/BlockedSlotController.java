@@ -1,5 +1,6 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.BlockedSlotDto;
 import com.app.auth.dto.BlockSlotRequest;
 import com.app.auth.service.BlockedSlotService;
@@ -30,8 +31,9 @@ public class BlockedSlotController {
      */
     @PostMapping("/{doctorId}/block-slots")
     public ResponseEntity<Map<String, Object>> createBlockedSlot(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @Valid @RequestBody BlockSlotRequest request) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         System.out.println("[BlockedSlotController] Creating blocked slot for doctor " + doctorId);
         System.out.println("[BlockedSlotController] Request: date=" + request.getDate() + 
@@ -70,7 +72,8 @@ public class BlockedSlotController {
      */
     @GetMapping("/{doctorId}/blocked-slots")
     public ResponseEntity<List<BlockedSlotDto>> getBlockedSlotsByDoctor(
-            @PathVariable("doctorId") Long doctorId) {
+            @PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         List<BlockedSlotDto> blockedSlots = blockedSlotService.getBlockedSlotsByDoctor(doctorId);
         return ResponseEntity.ok(blockedSlots);
@@ -81,8 +84,9 @@ public class BlockedSlotController {
      */
     @GetMapping("/{doctorId}/blocked-slots/date/{date}")
     public ResponseEntity<List<BlockedSlotDto>> getBlockedSlotsByDate(
-            @PathVariable("doctorId") Long doctorId,
+            @PathVariable("doctorId") String encodedDoctorId,
             @PathVariable("date") LocalDate date) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         
         List<BlockedSlotDto> blockedSlots = blockedSlotService.getBlockedSlotsByDoctorAndDate(doctorId, date);
         return ResponseEntity.ok(blockedSlots);
@@ -93,10 +97,12 @@ public class BlockedSlotController {
      */
     @GetMapping("/{doctorId}/workplace/{workplaceId}/blocked-slots")
     public ResponseEntity<List<BlockedSlotDto>> getBlockedSlotsByWorkplace(
-            @PathVariable("doctorId") Long doctorId,
-            @PathVariable("workplaceId") Long workplaceId,
+            @PathVariable("doctorId") String encodedDoctorId,
+            @PathVariable("workplaceId") String encodedWorkplaceId,
             @RequestParam(value = "fromDate", required = false) LocalDate fromDate,
             @RequestParam(value = "toDate", required = false) LocalDate toDate) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
+        Long workplaceId = QueryParamIdCrypto.decodeLong(encodedWorkplaceId);
         
         if (fromDate == null) {
             fromDate = LocalDate.now();
@@ -115,9 +121,11 @@ public class BlockedSlotController {
      */
     @GetMapping("/{doctorId}/workplace/{workplaceId}/is-day-blocked")
     public ResponseEntity<Map<String, Object>> isDayBlocked(
-            @PathVariable("doctorId") Long doctorId,
-            @PathVariable("workplaceId") Long workplaceId,
+            @PathVariable("doctorId") String encodedDoctorId,
+            @PathVariable("workplaceId") String encodedWorkplaceId,
             @RequestParam("date") LocalDate date) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
+        Long workplaceId = QueryParamIdCrypto.decodeLong(encodedWorkplaceId);
         
         BlockedSlotDto fullDayBlock = blockedSlotService.getFullDayBlock(doctorId, workplaceId, date);
         
@@ -139,7 +147,8 @@ public class BlockedSlotController {
      */
     @DeleteMapping("/blocked-slots/{blockedSlotId}")
     public ResponseEntity<Map<String, Object>> removeBlockedSlot(
-            @PathVariable("blockedSlotId") Long blockedSlotId) {
+            @PathVariable("blockedSlotId") String encodedBlockedSlotId) {
+        Long blockedSlotId = QueryParamIdCrypto.decodeLong(encodedBlockedSlotId);
         
         blockedSlotService.removeBlockedSlot(blockedSlotId);
         return ResponseEntity.ok(Map.of(

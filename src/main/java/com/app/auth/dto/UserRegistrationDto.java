@@ -37,6 +37,10 @@ public class UserRegistrationDto {
     @Size(max = 100, message = "Country must not exceed 100 characters")
     private String country;
 
+//    @NotBlank
+//    @Pattern(regexp = "^[0-9]{4,6}$", message = "PIN must be 4-6 digits")
+    private String pin;
+
     // Constructors
     public UserRegistrationDto() {}
 
@@ -51,6 +55,9 @@ public class UserRegistrationDto {
         this.pincode = pincode;
         this.country = country;
     }
+
+    public String getPin() { return pin; }
+    public void setPin(String pin) { this.pin = pin; }
 
     // Getters and Setters
     public String getMobileNumber() {

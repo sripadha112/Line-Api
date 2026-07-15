@@ -1,5 +1,7 @@
 package com.app.auth.controller;
 
+import com.app.auth.config.AuthAccess;
+import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.UserProfileDto;
 import com.app.auth.service.UserMedicalProfileService;
 import org.springframework.http.ResponseEntity;
@@ -27,7 +29,9 @@ public class UserMedicalProfileController {
      * - Emergency contact information
      */
     @GetMapping("/{userId}/profile")
-    public ResponseEntity<UserProfileDto> getUserCompleteProfile(@PathVariable("userId") Long userId) {
+    public ResponseEntity<UserProfileDto> getUserCompleteProfile(@PathVariable("userId") String encodedUserId) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelfOrDoctor(userId);
         UserProfileDto profile = medicalProfileService.getUserCompleteProfile(userId);
         
         if (profile != null) {
@@ -59,10 +63,12 @@ public class UserMedicalProfileController {
      */
     @PutMapping("/{userId}/edit-profile")
     public ResponseEntity<UserProfileDto> editUserProfile(
-            @PathVariable("userId") Long userId,
+            @PathVariable("userId") String encodedUserId,
             @RequestBody UserProfileDto userProfileDto) {
         
         try {
+            Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+            AuthAccess.requireSelfOrDoctor(userId);
             UserProfileDto updatedProfile = medicalProfileService.updateUserProfile(userId, userProfileDto);
             return ResponseEntity.ok(updatedProfile);
         } catch (RuntimeException e) {

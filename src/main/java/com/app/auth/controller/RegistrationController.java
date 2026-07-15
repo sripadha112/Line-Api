@@ -5,6 +5,8 @@ import com.app.auth.dto.DoctorResponseDto;
 import com.app.auth.dto.RegistrationResponse;
 import com.app.auth.dto.UserRegistrationDto;
 import com.app.auth.dto.UserProfileDto;
+import com.app.auth.config.QueryParamIdCrypto;
+import com.app.auth.config.AuthAccess;
 import com.app.auth.entity.DoctorDetails;
 import com.app.auth.entity.UserDetails;
 import com.app.auth.service.RegistrationService;
@@ -49,7 +51,9 @@ public class RegistrationController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<UserProfileDto> getUserById(@PathVariable("userId") Long userId) {
+    public ResponseEntity<UserProfileDto> getUserById(@PathVariable("userId") String encodedUserId) {
+        Long userId = QueryParamIdCrypto.decodeLong(encodedUserId);
+        AuthAccess.requireSelfOrDoctor(userId);
         UserProfileDto userProfile = medicalProfileService.getUserCompleteProfile(userId);
         
         if (userProfile != null) {
@@ -59,12 +63,23 @@ public class RegistrationController {
         }
     }
 
+    /**
+     * Get doctor by ID (SECONDARY PRIORITY - Load after workplaces)
+     * OPTIMIZED: Cached for 5 minutes, with workplaces eagerly loaded
+     * Frontend: Load this AFTER main workplaces data for better UX
+     * 
+     * NOTE: Prefer /api/doctors/{doctorId}/workplaces for primary doctor data
+     */
     @GetMapping("/doctor/{doctorId}")
-    public ResponseEntity<DoctorResponseDto> getDoctorById(@PathVariable("doctorId") Long doctorId) {
+    public ResponseEntity<DoctorResponseDto> getDoctorById(@PathVariable("doctorId") String encodedDoctorId) {
+        Long doctorId = QueryParamIdCrypto.decodeLong(encodedDoctorId);
         DoctorResponseDto doctor = registrationService.getDoctorResponseById(doctorId);
         
         if (doctor != null) {
-            return ResponseEntity.ok(doctor);
+            // Add caching for better performance (secondary priority = 5min cache)
+            return ResponseEntity.ok()
+                    .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES))
+                    .body(doctor);
         } else {
             return ResponseEntity.notFound().build();
         }

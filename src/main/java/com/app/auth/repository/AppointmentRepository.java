@@ -13,6 +13,8 @@ import java.util.Optional;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
 
+    long deleteByUserId(Long userId);
+
     // For calendar: find appointments between dates for a doctor
     List<Appointment> findByDoctorIdAndAppointmentTimeBetweenOrderByAppointmentTime(@Param("doctorId") Long doctorId, @Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
 
