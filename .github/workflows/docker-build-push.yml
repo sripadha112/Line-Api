@@ -7,9 +7,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# env:
+#   DOCKER_REGISTRY: docker.io
+#   DOCKER_REPOSITORY: sripadha112/line_application
 env:
   DOCKER_REGISTRY: docker.io
-  DOCKER_REPOSITORY: sripadha112/line_application
+  DOCKER_REPOSITORY: sripadha112/kedulz
 
 jobs:
   build-and-push:
