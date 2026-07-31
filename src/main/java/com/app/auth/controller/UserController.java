@@ -58,13 +58,14 @@ public class UserController {
     }
     
     /**
-     * 3. Book an appointment (stores in appropriate table based on date)
+     * 3. Quick booking (public flow used by QR booking page)
+     * Stores appointment in appropriate table based on date.
      */
-//    @PostMapping("/appointments/book")
-//    public ResponseEntity<UserAppointmentDto> bookAppointment(@Valid @RequestBody BookAppointmentRequestDto request) {
-//        UserAppointmentDto appointment = enhancedAppointmentService.bookAppointment(request);
-//        return ResponseEntity.status(201).body(appointment);
-//    }
+    @PostMapping("/appointments/book")
+    public ResponseEntity<UserAppointmentDto> bookAppointment(@Valid @RequestBody BookAppointmentRequestDto request) {
+        UserAppointmentDto appointment = enhancedAppointmentService.bookAppointment(request);
+        return ResponseEntity.status(201).body(appointment);
+    }
     
     /**
      * 4. Cancel an appointment

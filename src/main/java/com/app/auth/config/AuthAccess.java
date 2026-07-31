@@ -1,6 +1,7 @@
 package com.app.auth.config;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
@@ -42,14 +43,14 @@ public final class AuthAccess {
 
     private static Object currentClaim(String name) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required. Pass a valid Bearer token.");
         }
 
         Object details = authentication.getDetails();
         if (details instanceof Map<?, ?> claims) {
             return claims.get(name);
         }
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication details missing");
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication token claims missing. Pass a valid JWT Bearer token.");
     }
 }

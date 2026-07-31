@@ -83,6 +83,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/user/*/family-members/**").authenticated()
                 .requestMatchers("/api/auth/**",
                         "/api/register/**",
                         "/api/registration/**",
@@ -148,6 +149,15 @@ public class SecurityConfig {
             }
             
             String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+
+            if (requestPath.matches("^/api/user/[^/]+/family-members(/.*)?$")
+                    && (authHeader == null || !authHeader.startsWith("Bearer "))) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Missing Bearer token for protected family member endpoint\"}");
+                return;
+            }
+
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
                 try {
