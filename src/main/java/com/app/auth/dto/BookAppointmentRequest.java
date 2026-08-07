@@ -14,6 +14,8 @@ public class BookAppointmentRequest {
     @NotNull(message = "Requested time is required")
     private OffsetDateTime requestedTime;
 
+    private String appointmentDate;
+
     @NotBlank(message = "Slot is required")
     private String slot; // e.g., "02:30PM - 02:50PM"
 
@@ -29,6 +31,9 @@ public class BookAppointmentRequest {
 
     public OffsetDateTime getRequestedTime() { return requestedTime; }
     public void setRequestedTime(OffsetDateTime requestedTime) { this.requestedTime = requestedTime; }
+
+    public String getAppointmentDate() { return appointmentDate; }
+    public void setAppointmentDate(String appointmentDate) { this.appointmentDate = appointmentDate; }
 
     public String getSlot() { return slot; }
     public void setSlot(String slot) { this.slot = slot; }

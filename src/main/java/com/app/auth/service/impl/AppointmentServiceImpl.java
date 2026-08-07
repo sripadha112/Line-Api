@@ -289,7 +289,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (!doctorRepo.existsById(doctorId)) throw new IllegalArgumentException("Doctor not found");
         if (!userRepo.existsById(userId)) throw new IllegalArgumentException("User not found");
 
-        OffsetDateTime requested = req.getRequestedTime();
+        OffsetDateTime requested = resolveRequestedTime(req);
         int duration = 30; // Default duration in minutes
 
         // determine day window (based on requested time or today)
@@ -368,7 +368,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (req.getSlot() == null || req.getSlot().trim().isEmpty()) {
             throw new IllegalArgumentException("Slot is required");
         }
-        if (req.getRequestedTime() == null) {
+        OffsetDateTime requestedTime = resolveRequestedTime(req);
+        if (requestedTime == null) {
             throw new IllegalArgumentException("Requested time is required");
         }
 
@@ -383,7 +384,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         // Determine appointment date from requested time
-        LocalDate appointmentDate = req.getRequestedTime().toLocalDate();
+        LocalDate appointmentDate = requestedTime.toLocalDate();
         LocalDate today = LocalDate.now();
         String appointmentDateStr = appointmentDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
@@ -402,7 +403,7 @@ public class AppointmentServiceImpl implements AppointmentService {
             appointment.setWorkplaceAddress(workspace.getAddress());
             appointment.setAppointmentDate(appointmentDateStr);
             appointment.setSlot(req.getSlot());
-            appointment.setAppointmentTime(req.getRequestedTime());
+            appointment.setAppointmentTime(requestedTime);
             appointment.setDurationMinutes(durationMinutes);
             appointment.setStatus("BOOKED");
             appointment.setNotes(req.getNotes());
@@ -436,7 +437,7 @@ public class AppointmentServiceImpl implements AppointmentService {
             futureAppt.setWorkplaceAddress(workspace.getAddress());
             futureAppt.setAppointmentDate(appointmentDateStr);
             futureAppt.setSlot(req.getSlot());
-            futureAppt.setAppointmentTime(req.getRequestedTime());
+            futureAppt.setAppointmentTime(requestedTime);
             futureAppt.setDurationMinutes(durationMinutes);
             futureAppt.setStatus("BOOKED");
             futureAppt.setNotes(req.getNotes());
@@ -478,6 +479,27 @@ public class AppointmentServiceImpl implements AppointmentService {
             // If parsing fails, return default
         }
         return 30; // Default 30 minutes
+    }
+
+    private OffsetDateTime resolveRequestedTime(BookAppointmentRequest req) {
+        if (req.getRequestedTime() != null) {
+            return req.getRequestedTime();
+        }
+
+        if (req.getAppointmentDate() == null || req.getAppointmentDate().trim().isEmpty() || req.getSlot() == null) {
+            return null;
+        }
+
+        try {
+            String[] parts = req.getSlot().split(" - ");
+            String startStr = parts[0].trim();
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH);
+            LocalDate appointmentDate = LocalDate.parse(req.getAppointmentDate());
+            LocalTime startTime = LocalTime.parse(startStr, formatter);
+            return OffsetDateTime.of(appointmentDate, startTime, ZoneOffset.UTC);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private int getNextQueuePosition(Long doctorId, Long workspaceId, String appointmentDate) {
