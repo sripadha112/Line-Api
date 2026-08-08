@@ -6,12 +6,14 @@ import com.app.auth.repository.*;
 import com.app.auth.service.BlockedSlotService;
 import com.app.auth.service.EnhancedAppointmentService;
 import com.app.auth.service.NotificationService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,6 +32,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     private final com.app.auth.repository.FamilyMemberRepository familyMemberRepository;
     private final NotificationService notificationService;
     private final BlockedSlotService blockedSlotService;
+    private final ZoneId appZone;
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public EnhancedAppointmentServiceImpl(
             AppointmentRepository appointmentRepository,
@@ -40,7 +44,8 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             UserDetailsRepository userRepository,
             com.app.auth.repository.FamilyMemberRepository familyMemberRepository,
             NotificationService notificationService,
-            BlockedSlotService blockedSlotService) {
+            BlockedSlotService blockedSlotService,
+            @Value("${app.timezone:Asia/Kolkata}") String appTimezone) {
         this.appointmentRepository = appointmentRepository;
     // this.futureAppointmentRepository = futureAppointmentRepository;
         this.pastAppointmentRepository = pastAppointmentRepository;
@@ -50,6 +55,15 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         this.familyMemberRepository = familyMemberRepository;
         this.notificationService = notificationService;
         this.blockedSlotService = blockedSlotService;
+        this.appZone = ZoneId.of(appTimezone);
+    }
+
+    private LocalDate currentDate() {
+        return LocalDate.now(appZone);
+    }
+
+    private OffsetDateTime currentDateTime() {
+        return OffsetDateTime.now(appZone);
     }
 
     @Override
@@ -57,7 +71,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         Map<String, List<UserAppointmentDto>> appointmentsByDate = new LinkedHashMap<>();
         
         // Get today's date for filtering
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String today = currentDate().format(DATE_FORMATTER);
         
         // Get all appointments from appointments table for this user
         List<Appointment> allCurrentAppointments = appointmentRepository.findByUserIdOrderByAppointmentTimeDesc(userId);
@@ -122,7 +136,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             }
         } else {
             // Generate slots for current day + next 2 days (3 days total) - existing behavior
-            LocalDate currentDate = LocalDate.now();
+            LocalDate currentDate = currentDate();
             LocalDate endDate = currentDate.plusDays(2);
             
             for (int i = 0; i < 3; i++) {
@@ -248,9 +262,9 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         allSlots.removeAll(bookedSlots);
         
         // If requested date is today, remove slots that already started (cannot book past slots)
-        String todayStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String todayStr = currentDate().format(DATE_FORMATTER);
         if (date != null && date.equals(todayStr)) {
-            OffsetDateTime now = OffsetDateTime.now();
+            OffsetDateTime now = currentDateTime();
             List<String> filtered = new ArrayList<>();
             for (String slot : allSlots) {
                 try {
@@ -318,7 +332,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
                 .orElseThrow(() -> new IllegalArgumentException("Workplace not found"));
         
         LocalDate appointmentDate = LocalDate.parse(request.getAppointmentDate());
-        LocalDate today = LocalDate.now();
+        LocalDate today = currentDate();
         
         if (appointmentDate.equals(today)) {
             // Book in current appointments table
@@ -449,7 +463,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
             }
             
             LocalDate appointmentDate = LocalDate.parse(date);
-            return appointmentDate.atTime(startTime).atOffset(OffsetDateTime.now().getOffset());
+            return appointmentDate.atTime(startTime).atZone(appZone).toOffsetDateTime();
             
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid time slot format: " + slot + ". Expected format: '9:30AM - 10:00AM'", e);
@@ -505,7 +519,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         // Validate new appointment date
         try {
             LocalDate newDate = LocalDate.parse(request.getNewAppointmentDate());
-            LocalDate today = LocalDate.now();
+            LocalDate today = currentDate();
             
             if (newDate.isBefore(today)) {
                 throw new IllegalArgumentException("Cannot reschedule to a past date");
@@ -559,13 +573,13 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     @Override
     @Transactional
     public void movePastAppointments() {
-        String yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String yesterday = currentDate().minusDays(1).format(DATE_FORMATTER);
         
         // Find all appointments from yesterday and before that are still in the appointments table
         List<Appointment> appointmentsToMove = appointmentRepository.findByAppointmentDate(yesterday);
         
         // Also get any appointments that are older than yesterday
-        LocalDate currentDate = LocalDate.now();
+        LocalDate currentDate = currentDate();
         List<Appointment> allCurrentAppointments = appointmentRepository.findAll();
         List<Appointment> olderAppointments = allCurrentAppointments.stream()
                 .filter(a -> {
@@ -812,7 +826,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     
     private void createRescheduledAppointment(Appointment originalAppointment, BulkAppointmentStatusUpdateDto request) {
         LocalDate newDate = LocalDate.parse(request.getNewAppointmentDate());
-        LocalDate today = LocalDate.now();
+        LocalDate today = currentDate();
         LocalDate dayAfterTomorrow = today.plusDays(2);
         
         if (newDate.isEqual(today)) {
