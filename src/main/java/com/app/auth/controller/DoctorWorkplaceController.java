@@ -210,7 +210,7 @@ public class DoctorWorkplaceController {
         Map<String, List<WorkspaceAppointmentDto>> appointmentsByDate = new LinkedHashMap<>();
         
         // Get today's date for filtering
-        String today = LocalDate.now(ZoneId.of(appTimezone)).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         
         // Get all current appointments (from appointments table) - only today and future
         List<Appointment> currentAppointments = appointmentRepository.findByWorkplaceIdOrderByAppointmentDateAndTime(workplaceId);

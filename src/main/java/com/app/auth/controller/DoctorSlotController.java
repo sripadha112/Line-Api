@@ -3,12 +3,10 @@ package com.app.auth.controller;
 import com.app.auth.config.QueryParamIdCrypto;
 import com.app.auth.dto.DoctorSlotDto;
 import com.app.auth.service.DoctorSlotService;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 
 @RestController
@@ -16,12 +14,9 @@ import java.util.List;
 public class DoctorSlotController {
 
     private final DoctorSlotService slotService;
-    private final ZoneId appZoneId;
 
-    public DoctorSlotController(DoctorSlotService slotService,
-                                @Value("${app.timezone:Asia/Kolkata}") String appTimezone) {
+    public DoctorSlotController(DoctorSlotService slotService) {
         this.slotService = slotService;
-        this.appZoneId = ZoneId.of(appTimezone);
     }
 
     @GetMapping("/doctor/{doctorId}/available")
@@ -40,7 +35,7 @@ public class DoctorSlotController {
         } else {
             // Get slots for date range (default: current date + 2 days)
             if (fromDate == null) {
-                fromDate = LocalDate.now(appZoneId);
+                fromDate = LocalDate.now();
             }
             if (toDate == null) {
                 toDate = fromDate.plusDays(2);

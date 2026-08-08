@@ -9,13 +9,11 @@ import com.app.auth.repository.DoctorDetailsRepository;
 import com.app.auth.repository.DoctorSlotRepository;
 import com.app.auth.repository.DoctorWorkplaceRepository;
 import com.app.auth.service.DoctorSlotService;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -27,16 +25,13 @@ public class DoctorSlotServiceImpl implements DoctorSlotService {
     private final DoctorSlotRepository slotRepository;
     private final DoctorDetailsRepository doctorRepository;
     private final DoctorWorkplaceRepository workplaceRepository;
-    private final ZoneId appZoneId;
 
     public DoctorSlotServiceImpl(DoctorSlotRepository slotRepository,
                                 DoctorDetailsRepository doctorRepository,
-                                DoctorWorkplaceRepository workplaceRepository,
-                                @Value("${app.timezone:Asia/Kolkata}") String appTimezone) {
+                                DoctorWorkplaceRepository workplaceRepository) {
         this.slotRepository = slotRepository;
         this.doctorRepository = doctorRepository;
         this.workplaceRepository = workplaceRepository;
-        this.appZoneId = ZoneId.of(appTimezone);
     }
 
     @Override
@@ -122,7 +117,7 @@ public class DoctorSlotServiceImpl implements DoctorSlotService {
     public List<DoctorSlotDto> getAvailableSlots(Long doctorId, LocalDate fromDate, LocalDate toDate) {
         // If no dates provided, default to current date + 2 days
         if (fromDate == null) {
-            fromDate = LocalDate.now(appZoneId);
+            fromDate = LocalDate.now();
         }
         if (toDate == null) {
             toDate = fromDate.plusDays(2);
@@ -154,7 +149,7 @@ public class DoctorSlotServiceImpl implements DoctorSlotService {
     @Transactional
     public void generateSlotsForAllDoctors(int daysAhead) {
         List<DoctorDetails> doctors = doctorRepository.findAll();
-        LocalDate startDate = LocalDate.now(appZoneId);
+        LocalDate startDate = LocalDate.now();
         
         for (int i = 0; i <= daysAhead; i++) {
             LocalDate targetDate = startDate.plusDays(i);
