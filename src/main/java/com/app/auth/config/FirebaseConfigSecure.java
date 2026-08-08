@@ -1,8 +1,5 @@
 package com.app.auth.config;
 
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -20,7 +17,7 @@ import java.nio.file.Paths;
 import java.util.Base64;
 
 /**
- * Enhanced Firebase configuration class with support for multiple credential sources:
+ * Credential validation class with support for multiple credential sources:
  * 1. Environment variable with file path (GOOGLE_APPLICATION_CREDENTIALS)
  * 2. Environment variable with base64 encoded credentials (FIREBASE_CREDENTIALS_BASE64)
  * 3. Classpath resource (firebase-service-account-key.json)
@@ -34,7 +31,7 @@ public class FirebaseConfigSecure {
     private static final String ENV_CREDENTIALS_BASE64 = "FIREBASE_CREDENTIALS_BASE64";
 
     /**
-     * Initialize Firebase App with service account credentials
+     * Validate service account availability during startup.
      * Tries multiple sources in order of preference:
      * 1. GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
      * 2. FIREBASE_CREDENTIALS_BASE64 environment variable (base64 encoded JSON)
@@ -43,19 +40,8 @@ public class FirebaseConfigSecure {
     @PostConstruct
     public void initialize() {
         try {
-            // Check if Firebase app is already initialized
-            if (FirebaseApp.getApps().isEmpty()) {
-                GoogleCredentials credentials = loadCredentials();
-                
-                FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(credentials)
-                        .build();
-
-                FirebaseApp firebaseApp = FirebaseApp.initializeApp(options);
-                logger.info("Firebase application initialized successfully: {}", firebaseApp.getName());
-            } else {
-                logger.info("Firebase application already initialized");
-            }
+            loadCredentials();
+            logger.info("Firebase credentials validated successfully (Expo-only mode)");
         } catch (Exception e) {
             logger.error("Failed to initialize Firebase: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initialize Firebase", e);
@@ -63,11 +49,11 @@ public class FirebaseConfigSecure {
     }
 
     /**
-     * Load Google credentials from various sources
-     * @return GoogleCredentials instance
+     * Load credentials from various sources as a stream validation step.
+     * @return true if credentials are readable
      * @throws IOException if credentials cannot be loaded
      */
-    private GoogleCredentials loadCredentials() throws IOException {
+    private boolean loadCredentials() throws IOException {
         // Option 1: Load from GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
         String credentialsPath = System.getenv(ENV_CREDENTIALS_PATH);
         if (credentialsPath != null && !credentialsPath.trim().isEmpty()) {
@@ -75,7 +61,8 @@ public class FirebaseConfigSecure {
             Path path = Paths.get(credentialsPath);
             if (Files.exists(path)) {
                 try (InputStream inputStream = new FileInputStream(credentialsPath)) {
-                    return GoogleCredentials.fromStream(inputStream);
+                    inputStream.readNBytes(1);
+                    return true;
                 }
             } else {
                 logger.warn("Credentials file not found at path: {}", credentialsPath);
@@ -89,7 +76,8 @@ public class FirebaseConfigSecure {
             try {
                 byte[] decodedBytes = Base64.getDecoder().decode(credentialsBase64);
                 try (InputStream inputStream = new ByteArrayInputStream(decodedBytes)) {
-                    return GoogleCredentials.fromStream(inputStream);
+                    inputStream.readNBytes(1);
+                    return true;
                 }
             } catch (IllegalArgumentException e) {
                 logger.error("Invalid base64 encoding in {}: {}", ENV_CREDENTIALS_BASE64, e.getMessage());
@@ -115,16 +103,13 @@ public class FirebaseConfigSecure {
         }
 
         try (InputStream serviceAccountStream = serviceAccount.getInputStream()) {
-            return GoogleCredentials.fromStream(serviceAccountStream);
+            serviceAccountStream.readNBytes(1);
+            return true;
         }
     }
 
-    /**
-     * Provides the default Firebase app instance as a Spring bean
-     * @return FirebaseApp instance
-     */
     @Bean
-    public FirebaseApp firebaseApp() {
-        return FirebaseApp.getInstance();
+    public String firebaseMode() {
+        return "expo-only";
     }
 }

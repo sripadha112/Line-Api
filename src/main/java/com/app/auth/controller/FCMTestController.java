@@ -7,10 +7,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.google.firebase.FirebaseApp;
-
 /**
- * Test controller to verify Firebase FCM integration
+ * Test controller to verify notification mode configuration
  */
 @RestController
 @RequestMapping("/api/test")
@@ -21,14 +19,8 @@ public class FCMTestController {
     @GetMapping("/firebase-status")
     public ResponseEntity<String> checkFirebaseStatus() {
         try {
-            if (FirebaseApp.getApps().isEmpty()) {
-                logger.warn("Firebase app is not initialized");
-                return ResponseEntity.ok("Firebase: NOT INITIALIZED");
-            }
-            
-            FirebaseApp app = FirebaseApp.getInstance();
-            logger.info("Firebase app status check: {}", app.getName());
-            return ResponseEntity.ok("Firebase: INITIALIZED ✓ (App: " + app.getName() + ")");
+            logger.info("Notification mode status check: Expo-only mode");
+            return ResponseEntity.ok("Notifications: EXPO-ONLY MODE");
             
         } catch (Exception e) {
             logger.error("Error checking Firebase status: {}", e.getMessage(), e);
