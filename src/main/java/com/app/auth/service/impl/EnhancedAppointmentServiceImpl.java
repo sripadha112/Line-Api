@@ -71,16 +71,28 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         Map<String, List<UserAppointmentDto>> appointmentsByDate = new LinkedHashMap<>();
         
         // Get today's date for filtering
-        String today = currentDate().format(DATE_FORMATTER);
+        LocalDate todayDate = currentDate();
+        OffsetDateTime startOfToday = todayDate.atStartOfDay(appZone).toOffsetDateTime();
+        String today = todayDate.format(DATE_FORMATTER);
         
         // Get all appointments from appointments table for this user
         List<Appointment> allCurrentAppointments = appointmentRepository.findByUserIdOrderByAppointmentTimeDesc(userId);
         
         // Filter to only include appointments from today onwards
         List<UserAppointmentDto> currentAppointmentDtos = allCurrentAppointments.stream()
-                .filter(appointment -> appointment.getAppointmentDate().compareTo(today) >= 0) // Only today and future
+            .filter(appointment -> {
+                boolean byDate = appointment.getAppointmentDate() != null
+                    && appointment.getAppointmentDate().compareTo(today) >= 0;
+                boolean byTime = appointment.getAppointmentTime() != null
+                    && !appointment.getAppointmentTime().isBefore(startOfToday);
+                return byDate || byTime;
+            }) // Include current/future by date or by timestamp (handles date/timestamp mismatch)
 //                .filter(appointment -> "BOOKED".equals(appointment.getStatus())) // Only booked appointments
-                .map(this::convertToUserAppointmentDto)
+            .map(appointment -> {
+                UserAppointmentDto dto = convertToUserAppointmentDto(appointment);
+                dto.setAppointmentDate(resolveDisplayDate(appointment));
+                return dto;
+            })
                 .collect(Collectors.toList());
         
         // Group current appointments by date
@@ -97,6 +109,16 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
     int totalAppointments = currentAppointmentDtos.size();
         
         return new UserAppointmentsResponseDto(appointmentsByDate, totalAppointments);
+    }
+
+    private String resolveDisplayDate(Appointment appointment) {
+        if (appointment.getAppointmentTime() != null) {
+            return appointment.getAppointmentTime()
+                    .atZoneSameInstant(appZone)
+                    .toLocalDate()
+                    .format(DATE_FORMATTER);
+        }
+        return appointment.getAppointmentDate();
     }
 
     @Override
@@ -307,7 +329,7 @@ public class EnhancedAppointmentServiceImpl implements EnhancedAppointmentServic
         // Check current day appointments
         List<Appointment> currentAppointments = appointmentRepository.findByDoctorIdAndWorkplaceIdAndAppointmentDate(doctorId, workplaceId, date);
         bookedSlots.addAll(currentAppointments.stream()
-                .filter(a -> a.getSlot() != null && !a.getStatus().equals("CANCELLED"))
+                .filter(a -> a.getSlot() != null && "BOOKED".equals(a.getStatus()))
                 .map(Appointment::getSlot)
                 .collect(Collectors.toSet()));
         
